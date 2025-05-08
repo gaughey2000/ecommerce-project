@@ -49,18 +49,25 @@ function App() {
 
   // Add to cart
   const addToCart = (product) => {
-    console.log('Adding to cart:', product.name);
+    console.log('Adding to cart:', product.name, { userId, productId: product.product_id });
     fetch('http://localhost:3000/api/cart', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ userId, productId: product.product_id, quantity: 1 })
     })
       .then(res => {
-        if (!res.ok) throw new Error('Failed to add to cart');
+        console.log('Cart response:', res.status, res.ok);
+        if (!res.ok) throw new Error(`Failed to add to cart: ${res.statusText}`);
         return res.json();
       })
-      .then(data => setCart([...cart, { product_id: data.product_id, quantity: data.quantity }]))
-      .catch(err => setError(err.message));
+      .then(data => {
+        console.log('Cart data:', data);
+        setCart([...cart, { product_id: data.product_id, quantity: data.quantity }]);
+      })
+      .catch(err => {
+        console.error('Cart error:', err);
+        setError(`Error adding to cart: ${err.message}`);
+      });
   };
 
   // Place order
