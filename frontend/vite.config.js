@@ -8,5 +8,12 @@ export default defineConfig({
     react(), 
     tailwindcss(),
   ],
-
-})
+  optimizeDeps: {
+    exclude: ['jwt-decode'], // Prevent Vite from pre-bundling jwt-decode
+  },
+  resolve: {
+    alias: {
+      'jwt-decode': '/node_modules/jwt-decode', // Ensure direct module resolution
+    },
+  }
+});
