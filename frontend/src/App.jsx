@@ -1,15 +1,19 @@
 import { useState, useEffect } from 'react';
-import {jwtDecode} from 'jwt-decode';
+import { jwtDecode } from 'jwt-decode';
 import './App.css';
 
-// Product component
+// Product Component
 const Product = ({ product, onAddToCart }) => {
-  console.log('Rendering Product:', product.name);
+  if (!product || !product.name || !product.price) {
+    console.warn('Invalid product data:', product);
+    return <p className="text-gray-500">Product unavailable</p>;
+  }
+
   return (
     <div className="border p-4 rounded shadow">
       <h3 className="text-lg font-semibold">{product.name}</h3>
-      <p className="text-gray-600">{product.description}</p>
-      <p className="text-green-600 font-bold">£{product.price}</p>
+      <p className="text-gray-600">{product.description || 'No description'}</p>
+      <p className="text-green-600 font-bold">£{Number(product.price).toFixed(2)}</p>
       <button
         className="bg-blue-500 text-white px-4 py-2 rounded mt-2 hover:bg-blue-600"
         onClick={() => onAddToCart(product)}
@@ -20,19 +24,19 @@ const Product = ({ product, onAddToCart }) => {
   );
 };
 
-// Main App component
+// Main App Component
 function App() {
   const [products, setProducts] = useState([]);
   const [cart, setCart] = useState([]);
   const [error, setError] = useState(null);
+  const [success, setSuccess] = useState(null); // Ensure success state
   const [user, setUser] = useState(null);
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
+  const [confirmPassword, setConfirmPassword] = useState('');
   const [isRegistering, setIsRegistering] = useState(false);
 
-  console.log('App component mounted');
-
-  // Check for existing token on mount
+  // Check for existing token
   useEffect(() => {
     const token = localStorage.getItem('token');
     if (token) {
@@ -49,26 +53,53 @@ function App() {
 
   // Fetch products
   useEffect(() => {
-    console.log('Fetching products...');
     fetch('http://localhost:3000/api/products')
       .then(res => {
-        console.log('Fetch response:', res.status, res.ok);
         if (!res.ok) throw new Error('Failed to fetch products');
         return res.json();
       })
       .then(data => {
-        console.log('Products data:', data);
+        if (!Array.isArray(data)) throw new Error('Invalid product data format');
         setProducts(data);
       })
       .catch(err => {
-        console.error('Fetch error:', err);
+        console.error('Fetch products error:', err);
         setError(err.message);
       });
   }, []);
 
+  // Validate email
+  const validateEmail = (email) => {
+    const re = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+    return re.test(email);
+  };
+
   // Handle register/login
   const handleAuth = (endpoint) => {
-    console.log(`${endpoint} request:`, { email });
+    setError(null);
+    setSuccess(null);
+
+    if (!email || !password) {
+      setError('Email and password are required');
+      return;
+    }
+
+    if (!validateEmail(email)) {
+      setError('Invalid email format');
+      return;
+    }
+
+    if (endpoint === 'register') {
+      if (password !== confirmPassword) {
+        setError('Passwords do not match');
+        return;
+      }
+      if (password.length < 8) {
+        setError('Password must be at least 8 characters');
+        return;
+      }
+    }
+
     fetch(`http://localhost:3000/api/${endpoint}`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
@@ -76,7 +107,7 @@ function App() {
     })
       .then(res => {
         if (!res.ok) {
-          return res.json().then(err => { throw new Error(err.error); });
+          return res.json().then(err => { throw new Error(err.error || 'Request failed') });
         }
         return res.json();
       })
@@ -86,7 +117,8 @@ function App() {
         setUser({ userId: data.userId, email: data.email });
         setEmail('');
         setPassword('');
-        setError(null);
+        setConfirmPassword('');
+        setSuccess(endpoint === 'register' ? 'Registration successful! Logged in.' : 'Login successful!');
         console.log(`${endpoint} successful:`, data.userId);
       })
       .catch(err => {
@@ -102,7 +134,7 @@ function App() {
     setUser(null);
     setCart([]);
     setError(null);
-    console.log('Logged out');
+    setSuccess(null);
   };
 
   // Add to cart
@@ -111,13 +143,10 @@ function App() {
       setError('Please log in to add items to cart');
       return;
     }
-    console.log('Attempting to add to cart:', product.name, { userId: user.userId, productId: product.product_id });
     const existingItem = cart.find(item => item.product_id === product.product_id);
     if (existingItem) {
-      console.log('Item exists, updating quantity:', existingItem);
       updateCartQuantity(existingItem.cart_item_id, existingItem.quantity + 1);
     } else {
-      console.log('Adding new item to cart');
       fetch('http://localhost:3000/api/cart', {
         method: 'POST',
         headers: {
@@ -127,14 +156,10 @@ function App() {
         body: JSON.stringify({ productId: product.product_id, quantity: 1 })
       })
         .then(res => {
-          console.log('Cart response:', res.status, res.ok);
-          if (!res.ok) {
-            return res.json().then(err => { throw new Error(err.error); });
-          }
+          if (!res.ok) throw new Error('Failed to add to cart');
           return res.json();
         })
         .then(data => {
-          console.log('Cart data:', data);
           setCart([...cart, {
             cart_item_id: data.cart_item_id,
             product_id: data.product_id,
@@ -144,17 +169,13 @@ function App() {
           }]);
           setError(null);
         })
-        .catch(err => {
-          console.error('Cart error:', err);
-          setError(err.message);
-        });
+        .catch(err => setError(err.message));
     }
   };
 
   // Update cart quantity
   const updateCartQuantity = (cartItemId, newQuantity) => {
     if (newQuantity < 1) return;
-    console.log('Updating quantity:', { cartItemId, newQuantity });
     fetch(`http://localhost:3000/api/cart/${cartItemId}`, {
       method: 'PATCH',
       headers: {
@@ -164,28 +185,20 @@ function App() {
       body: JSON.stringify({ quantity: newQuantity })
     })
       .then(res => {
-        console.log('Update response:', res.status, res.ok);
-        if (!res.ok) {
-          return res.json().then(err => { throw new Error(err.error); });
-        }
+        if (!res.ok) throw new Error('Failed to update cart');
         return res.json();
       })
       .then(data => {
-        console.log('Update data:', data);
         setCart(cart.map(item =>
           item.cart_item_id === cartItemId ? { ...item, quantity: data.quantity } : item
         ));
         setError(null);
       })
-      .catch(err => {
-        console.error('Update error:', err);
-        setError(err.message);
-      });
+      .catch(err => setError(err.message));
   };
 
   // Remove from cart
   const removeFromCart = (cartItemId) => {
-    console.log('Removing from cart:', cartItemId);
     fetch(`http://localhost:3000/api/cart/${cartItemId}`, {
       method: 'DELETE',
       headers: {
@@ -194,22 +207,15 @@ function App() {
       }
     })
       .then(res => {
-        console.log('Remove response:', res.status, res.ok);
-        if (!res.ok) {
-          return res.json().then(err => { throw new Error(err.error); });
-        }
+        if (!res.ok) throw new Error('Failed to remove from cart');
         setCart(cart.filter(item => item.cart_item_id !== cartItemId));
         setError(null);
       })
-      .catch(err => {
-        console.error('Remove error:', err);
-        setError(err.message);
-      });
+      .catch(err => setError(err.message));
   };
 
   // Clear cart
   const clearCart = () => {
-    console.log('Clearing cart for user:', user.userId);
     fetch(`http://localhost:3000/api/cart/user/${user.userId}`, {
       method: 'DELETE',
       headers: {
@@ -218,17 +224,11 @@ function App() {
       }
     })
       .then(res => {
-        console.log('Clear cart response:', res.status, res.ok);
-        if (!res.ok) {
-          return res.json().then(err => { throw new Error(err.error); });
-        }
+        if (!res.ok) throw new Error('Failed to clear cart');
         setCart([]);
         setError(null);
       })
-      .catch(err => {
-        console.error('Clear cart error:', err);
-        setError(err.message);
-      });
+      .catch(err => setError(err.message));
   };
 
   // Calculate cart total
@@ -236,7 +236,6 @@ function App() {
 
   // Place order
   const placeOrder = () => {
-    console.log('Placing order for user:', user.userId);
     fetch('http://localhost:3000/api/orders', {
       method: 'POST',
       headers: {
@@ -246,9 +245,7 @@ function App() {
       body: JSON.stringify({})
     })
       .then(res => {
-        if (!res.ok) {
-          return res.json().then(err => { throw new Error(err.error); });
-        }
+        if (!res.ok) throw new Error('Failed to place order');
         return res.json();
       })
       .then(data => {
@@ -263,6 +260,7 @@ function App() {
     <div className="container mx-auto p-4">
       <h1 className="text-3xl font-bold mb-4">E-commerce Store</h1>
       {error && <p className="text-red-500 mb-4">Error: {error}</p>}
+      {success && <p className="text-green-500 mb-4">{success}</p>}
       {!user ? (
         <div className="mb-6">
           <h2 className="text-2xl mb-2">{isRegistering ? 'Register' : 'Login'}</h2>
@@ -281,6 +279,15 @@ function App() {
               onChange={(e) => setPassword(e.target.value)}
               className="border p-2 rounded"
             />
+            {isRegistering && (
+              <input
+                type="password"
+                placeholder="Confirm Password"
+                value={confirmPassword}
+                onChange={(e) => setConfirmPassword(e.target.value)}
+                className="border p-2 rounded"
+              />
+            )}
             <button
               className="bg-blue-500 text-white px-4 py-2 rounded hover:bg-blue-600"
               onClick={() => handleAuth(isRegistering ? 'register' : 'login')}
@@ -289,7 +296,14 @@ function App() {
             </button>
             <button
               className="text-blue-500 hover:underline"
-              onClick={() => setIsRegistering(!isRegistering)}
+              onClick={() => {
+                setIsRegistering(!isRegistering);
+                setError(null);
+                setSuccess(null);
+                setEmail('');
+                setPassword('');
+                setConfirmPassword('');
+              }}
             >
               {isRegistering ? 'Switch to Login' : 'Switch to Register'}
             </button>
@@ -329,7 +343,7 @@ function App() {
                 {cart.map((item, index) => (
                   <li key={index} className="flex justify-between items-center mb-2">
                     <div className="flex items-center space-x-2">
-                      <span>{item.name} (£{item.price} each)</span>
+                      <span>{item.name} (£{Number(item.price).toFixed(2)} each)</span>
                       <button
                         className="bg-gray-300 text-black px-2 py-1 rounded hover:bg-gray-400"
                         onClick={() => updateCartQuantity(item.cart_item_id, item.quantity - 1)}
@@ -360,15 +374,13 @@ function App() {
               >
                 Clear Cart
               </button>
+              <button
+                className="bg-green-500 text-white px-4 py-2 rounded hover:bg-green-600 mt-4"
+                onClick={placeOrder}
+              >
+                Place Order
+              </button>
             </div>
-          )}
-          {cart.length > 0 && (
-            <button
-              className="bg-green-500 text-white px-4 py-2 rounded hover:bg-green-600 mt-4"
-              onClick={placeOrder}
-            >
-              Place Order
-            </button>
           )}
         </>
       )}
