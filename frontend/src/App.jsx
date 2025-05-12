@@ -9,7 +9,7 @@ const Product = ({ product, onAddToCart }) => {
     <div className="border p-4 rounded shadow">
       <h3 className="text-lg font-semibold">{product.name}</h3>
       <p className="text-gray-600">{product.description}</p>
-      <p className="text-green-600 font-bold">${product.price}</p>
+      <p className="text-green-600 font-bold">£{product.price}</p>
       <button
         className="bg-blue-500 text-white px-4 py-2 rounded mt-2 hover:bg-blue-600"
         onClick={() => onAddToCart(product)}
@@ -329,7 +329,7 @@ function App() {
                 {cart.map((item, index) => (
                   <li key={index} className="flex justify-between items-center mb-2">
                     <div className="flex items-center space-x-2">
-                      <span>{item.name} (${item.price} each)</span>
+                      <span>{item.name} (£{item.price} each)</span>
                       <button
                         className="bg-gray-300 text-black px-2 py-1 rounded hover:bg-gray-400"
                         onClick={() => updateCartQuantity(item.cart_item_id, item.quantity - 1)}
@@ -353,7 +353,7 @@ function App() {
                   </li>
                 ))}
               </ul>
-              <p className="text-lg font-semibold">Total: ${cartTotal}</p>
+              <p className="text-lg font-semibold">Total: £{cartTotal}</p>
               <button
                 className="bg-yellow-500 text-white px-4 py-2 rounded hover:bg-yellow-600 mt-4 mr-2"
                 onClick={clearCart}
