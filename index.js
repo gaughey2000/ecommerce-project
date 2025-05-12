@@ -93,14 +93,23 @@ const authenticateToken = (req, res, next) => {
   });
 };
 
-// Get all products
+// Get products
 app.get('/api/products', async (req, res) => {
   try {
-    const result = await pool.query('SELECT * FROM products');
+    const { query } = req.query;
+    let result;
+    if (query) {
+      result = await pool.query(
+        'SELECT * FROM products WHERE name ILIKE $1',
+        [`%${query}%`]
+      );
+    } else {
+      result = await pool.query('SELECT * FROM products');
+    }
     res.json(result.rows);
   } catch (err) {
-    console.error('Database error:', err);
-    res.status(500).send('Server error');
+    console.error('Error fetching products:', err);
+    res.status(500).json({ error: 'Internal server error' });
   }
 });
 
@@ -277,6 +286,18 @@ app.post('/api/orders', authenticateToken, async (req, res) => {
   } catch (err) {
     console.error('Order error:', err);
     res.status(500).json({ error: err.message });
+  }
+});
+
+//Order history
+app.get('/api/orders/user/:userId', async (req, res) => {
+  try {
+    const { userId } = req.params;
+    const result = await pool.query('SELECT * FROM orders WHERE user_id = $1', [userId]);
+    res.json(result.rows);
+  } catch (err) {
+    console.error('Error fetching orders:', err);
+    res.status(500).json({ error: 'Internal server error' });
   }
 });
 

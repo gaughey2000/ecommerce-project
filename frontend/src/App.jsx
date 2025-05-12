@@ -29,12 +29,14 @@ function App() {
   const [products, setProducts] = useState([]);
   const [cart, setCart] = useState([]);
   const [error, setError] = useState(null);
-  const [success, setSuccess] = useState(null); // Ensure success state
+  const [success, setSuccess] = useState(null);
   const [user, setUser] = useState(null);
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [confirmPassword, setConfirmPassword] = useState('');
   const [isRegistering, setIsRegistering] = useState(false);
+  const [orders, setOrders] = useState([]);
+  const [searchQuery, setSearchQuery] = useState(''); // New state for search
 
   // Check for existing token
   useEffect(() => {
@@ -53,7 +55,10 @@ function App() {
 
   // Fetch products
   useEffect(() => {
-    fetch('http://localhost:3000/api/products')
+    const url = searchQuery
+      ? `http://localhost:3000/api/products?query=${encodeURIComponent(searchQuery)}`
+      : 'http://localhost:3000/api/products';
+    fetch(url)
       .then(res => {
         if (!res.ok) throw new Error('Failed to fetch products');
         return res.json();
@@ -66,7 +71,22 @@ function App() {
         console.error('Fetch products error:', err);
         setError(err.message);
       });
-  }, []);
+  }, [searchQuery]); // Re-fetch when searchQuery changes
+
+  // Fetch orders
+  useEffect(() => {
+    if (user) {
+      fetch(`http://localhost:3000/api/orders/user/${user.userId}`, {
+        headers: { 'Authorization': `Bearer ${localStorage.getItem('token')}` }
+      })
+        .then(res => {
+          if (!res.ok) throw new Error('Failed to fetch orders');
+          return res.json();
+        })
+        .then(data => setOrders(data))
+        .catch(err => setError(err.message));
+    }
+  }, [user]);
 
   // Validate email
   const validateEmail = (email) => {
@@ -133,6 +153,7 @@ function App() {
     localStorage.removeItem('email');
     setUser(null);
     setCart([]);
+    setOrders([]);
     setError(null);
     setSuccess(null);
   };
@@ -321,10 +342,17 @@ function App() {
         </div>
       )}
       <h2 className="text-2xl mb-2">Products</h2>
+      <input
+        type="text"
+        placeholder="Search products..."
+        value={searchQuery}
+        onChange={(e) => setSearchQuery(e.target.value)}
+        className="border p-2 rounded mb-4 w-full max-w-md"
+      />
       {products.length === 0 && !error ? (
         <p>Loading products...</p>
       ) : products.length === 0 ? (
-        <p>No products available</p>
+        <p>No products found</p>
       ) : (
         <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
           {products.map(product => (
@@ -381,6 +409,16 @@ function App() {
                 Place Order
               </button>
             </div>
+          )}
+          <h2 className="text-2xl mt-6 mb-2">My Orders</h2>
+          {orders.length === 0 ? (
+            <p className="text-gray-600">No orders yet</p>
+          ) : (
+            <ul>
+              {orders.map(order => (
+                <li key={order.order_id}>Order #{order.order_id} - Status: {order.status || 'Pending'}</li>
+              ))}
+            </ul>
           )}
         </>
       )}
