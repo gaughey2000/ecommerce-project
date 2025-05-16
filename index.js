@@ -6,10 +6,13 @@ const jwt = require('jsonwebtoken');
 const app = express();
 const port = 3000;
 const JWT_SECRET = 'your_jwt_secret_key'; // Replace with a secure key in production
+const multer = require('multer');
+const path = require('path');
 
 // Middleware
 app.use(cors());
 app.use(express.json());
+app.use('/uploads', express.static(path.join(__dirname, 'uploads')));
 
 // PostgreSQL connection
 const pool = new Pool({
@@ -29,6 +32,14 @@ pool.connect((err, client, release) => {
   console.log('Successfully connected to the ecommerce database');
   release();
 });
+//Multer setup
+const storage = multer.diskStorage({
+  destination: './Uploads/',
+  filename: (req, file, cb) => {
+    cb(null, Date.now() + path.extname(file.originalname));
+  }
+});
+const upload = multer({ storage });
 
 // Register user
 app.post('/api/register', async (req, res) => {
@@ -298,6 +309,36 @@ app.get('/api/orders/user/:userId', async (req, res) => {
   } catch (err) {
     console.error('Error fetching orders:', err);
     res.status(500).json({ error: 'Internal server error' });
+  }
+});
+
+// Upload product image
+app.post('/api/products/image', upload.single('image'), async (req, res) => {
+  try {
+    const imagePath = `/uploads/${req.file.filename}`;
+    res.json({ image: imagePath });
+  } catch (err) {
+    console.error('Image upload error:', err);
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// Update product with image
+app.patch('/api/products/:id', async (req, res) => {
+  const { id } = req.params;
+  const { image } = req.body;
+  try {
+    const result = await pool.query(
+      'UPDATE products SET image = $1 WHERE product_id = $2 RETURNING *',
+      [image, id]
+    );
+    if (result.rows.length === 0) {
+      return res.status(404).json({ error: 'Product not found' });
+    }
+    res.json(result.rows[0]);
+  } catch (err) {
+    console.error('Update product error:', err);
+    res.status(500).json({ error: err.message });
   }
 });
 

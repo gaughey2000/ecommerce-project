@@ -11,6 +11,11 @@ const Product = ({ product, onAddToCart }) => {
 
   return (
     <div className="border p-4 rounded shadow">
+      <img
+        src={'https://via.placeholder.com/150?text=No+Image'}
+        alt={product.name}
+        className="w-full h-48 object-cover mb-2"
+      />
       <h3 className="text-lg font-semibold">{product.name}</h3>
       <p className="text-gray-600">{product.description || 'No description'}</p>
       <p className="text-green-600 font-bold">£{Number(product.price).toFixed(2)}</p>
