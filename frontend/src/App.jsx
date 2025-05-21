@@ -12,7 +12,7 @@ const Product = ({ product, onAddToCart }) => {
   return (
     <div className="border p-4 rounded shadow">
       <img
-        src={'https://via.placeholder.com/150?text=No+Image'}
+        src={product.image ? `http://localhost:3000${product.image}` : 'http://localhost:3000/uploads/placeholder.jpg'}
         alt={product.name}
         className="w-full h-48 object-cover mb-2"
       />
