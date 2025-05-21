@@ -1,0 +1,18 @@
+
+.checkout-form {
+    border: 1px solid #e5e7eb;
+    padding: 1rem;
+    border-radius: 0.375rem;
+    margin-top: 1rem;
+  }
+  
+  .checkout-form input {
+    border: 1px solid #e5e7eb;
+    padding: 0.5rem;
+    border-radius: 0.375rem;
+    width: 100%;
+  }
+  
+  .checkout-form button {
+    margin-top: 0.5rem;
+  }

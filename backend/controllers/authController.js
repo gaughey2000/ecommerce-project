@@ -1,7 +1,7 @@
 const bcrypt = require('bcrypt');
 const jwt = require('jsonwebtoken');
 const pool = require('../db');
-const JWT_SECRET = 'your_jwt_secret_key'; // Replace with env variable
+const JWT_SECRET = process.env.JWT_SECRET;
 
 const register = async (req, res) => {
   const { email, password } = req.body;

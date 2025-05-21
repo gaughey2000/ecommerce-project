@@ -1,3 +1,5 @@
+require('dotenv').config();
+console.log('JWT_SECRET:', process.env.JWT_SECRET);
 const express = require('express');
 const cors = require('cors');
 const path = require('path');
@@ -7,6 +9,8 @@ const orderRoutes = require('./routes/orderRoutes');
 const productRoutes = require('./routes/productRoutes');
 const uploadRoutes = require('./routes/uploadRoutes');
 const checkoutRoutes = require('./routes/checkoutRoutes');
+
+
 
 const app = express();
 const port = 3000;

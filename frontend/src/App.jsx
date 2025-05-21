@@ -2,6 +2,7 @@ import { useState, useEffect } from 'react';
 import { jwtDecode } from 'jwt-decode';
 import './App.css';
 
+
 // Product Component
 const Product = ({ product, onAddToCart }) => {
   if (!product || !product.name || !product.price) {
@@ -41,7 +42,14 @@ function App() {
   const [confirmPassword, setConfirmPassword] = useState('');
   const [isRegistering, setIsRegistering] = useState(false);
   const [orders, setOrders] = useState([]);
-  const [searchQuery, setSearchQuery] = useState(''); // New state for search
+  const [searchQuery, setSearchQuery] = useState('');
+  const [showCheckoutForm, setShowCheckoutForm] = useState(false);
+  const [shippingInfo, setShippingInfo] = useState({
+    address: '',
+    city: '',
+    postalCode: '',
+    country: ''
+  });
 
   // Check for existing token
   useEffect(() => {
@@ -262,24 +270,60 @@ function App() {
 
   // Place order
   const placeOrder = () => {
-    fetch('http://localhost:3000/api/orders', {
+    if (!shippingInfo.address || !shippingInfo.city || !shippingInfo.postalCode || !shippingInfo.country) {
+      setError('Please fill in all shipping information');
+      return;
+    }
+
+    const cartItems = cart.map(item => ({
+      product_id: item.product_id,
+      quantity: item.quantity
+    }));
+
+    fetch('http://localhost:3000/api/checkout', {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
         'Authorization': `Bearer ${localStorage.getItem('token')}`
       },
-      body: JSON.stringify({})
+      body: JSON.stringify({ cart_items: cartItems, shipping_info: shippingInfo })
     })
       .then(res => {
         if (!res.ok) throw new Error('Failed to place order');
         return res.json();
       })
       .then(data => {
-        alert(`Order created! Order ID: ${data.orderId}`);
+        setSuccess(`Order placed! Order ID: ${data.orderId}, Total: £${data.total}`);
         setCart([]);
-        setError(null);
+        setShippingInfo({ address: '', city: '', postalCode: '', country: '' });
+        setShowCheckoutForm(false);
+        // Refresh orders
+        fetch(`http://localhost:3000/api/orders/user/${user.userId}`, {
+          headers: { 'Authorization': `Bearer ${localStorage.getItem('token')}` }
+        })
+          .then(res => {
+            if (!res.ok) throw new Error('Failed to fetch orders');
+            return res.json();
+          })
+          .then(data => setOrders(data))
+          .catch(err => setError(err.message));
       })
       .catch(err => setError(err.message));
+  };
+
+  // Handle shipping info input
+  const handleShippingInput = (e) => {
+    const { name, value } = e.target;
+    setShippingInfo({ ...shippingInfo, [name]: value });
+  };
+
+  // Initiate checkout
+  const initiateCheckout = () => {
+    if (cart.length === 0) {
+      setError('Cart is empty');
+      return;
+    }
+    setShowCheckoutForm(true);
   };
 
   return (
@@ -365,56 +409,111 @@ function App() {
           ))}
         </div>
       )}
-      {user && (
-        <>
-          <h2 className="text-2xl mt-6 mb-2">Cart</h2>
-          {cart.length === 0 ? (
-            <p className="text-gray-600">Cart is empty</p>
-          ) : (
-            <div>
-              <ul className="mb-4">
-                {cart.map((item, index) => (
-                  <li key={index} className="flex justify-between items-center mb-2">
-                    <div className="flex items-center space-x-2">
-                      <span>{item.name} (£{Number(item.price).toFixed(2)} each)</span>
-                      <button
-                        className="bg-gray-300 text-black px-2 py-1 rounded hover:bg-gray-400"
-                        onClick={() => updateCartQuantity(item.cart_item_id, item.quantity - 1)}
-                      >
-                        −
-                      </button>
-                      <span>Qty: {item.quantity}</span>
-                      <button
-                        className="bg-gray-300 text-black px-2 py-1 rounded hover:bg-gray-400"
-                        onClick={() => updateCartQuantity(item.cart_item_id, item.quantity + 1)}
-                      >
-                        +
-                      </button>
-                    </div>
-                    <button
-                      className="bg-red-500 text-white px-2 py-1 rounded hover:bg-red-600"
-                      onClick={() => removeFromCart(item.cart_item_id)}
-                    >
-                      Remove
-                    </button>
-                  </li>
-                ))}
-              </ul>
-              <p className="text-lg font-semibold">Total: £{cartTotal}</p>
+{user && (
+  <>
+    <h2 className="text-2xl mt-6 mb-2">Cart</h2>
+    {cart.length === 0 ? (
+      <p className="text-gray-600">Cart is empty</p>
+    ) : (
+      <div>
+        <ul className="mb-4">
+          {cart.map((item, index) => (
+            <li key={index} className="flex justify-between items-center mb-2">
+              <div className="flex items-center space-x-2">
+                <span>{item.name} (£{Number(item.price).toFixed(2)} each)</span>
+                <button
+                  className="bg-gray-300 text-black px-2 py-1 rounded hover:bg-gray-400"
+                  onClick={() => updateCartQuantity(item.cart_item_id, item.quantity - 1)}
+                >
+                  −
+                </button>
+                <span>Qty: {item.quantity}</span>
+                <button
+                  className="bg-gray-300 text-black px-2 py-1 rounded hover:bg-gray-400"
+                  onClick={() => updateCartQuantity(item.cart_item_id, item.quantity + 1)}
+                >
+                  +
+                </button>
+              </div>
               <button
-                className="bg-yellow-500 text-white px-4 py-2 rounded hover:bg-yellow-600 mt-4 mr-2"
-                onClick={clearCart}
+                className="bg-red-500 text-white px-2 py-1 rounded hover:bg-red-600"
+                onClick={() => removeFromCart(item.cart_item_id)}
               >
-                Clear Cart
+                Remove
               </button>
+            </li>
+          ))}
+        </ul>
+        <p className="text-lg font-semibold">Total: £{cartTotal}</p>
+        <button
+          className="bg-yellow-500 text-white px-4 py-2 rounded hover:bg-yellow-600 mt-4 mr-2"
+          onClick={clearCart}
+        >
+          Clear Cart
+        </button>
+        <button
+          className="bg-green-500 text-white px-4 py-2 rounded hover:bg-green-600 mt-4"
+          onClick={initiateCheckout}
+        >
+          Proceed to Checkout
+        </button>
+        {showCheckoutForm && (
+          <div className="mt-4 p-4 border border-gray-200 rounded-lg">
+            <h3 className="text-xl font-semibold mb-2">Shipping Information</h3>
+            <div className="flex flex-col space-y-2">
+              <input
+                type="text"
+                name="address"
+                value={shippingInfo.address}
+                onChange={handleShippingInput}
+                placeholder="Address"
+                className="border border-gray-300 p-2 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
+                required
+              />
+              <input
+                type="text"
+                name="city"
+                value={shippingInfo.city}
+                onChange={handleShippingInput}
+                placeholder="City"
+                className="border border-gray-300 p-2 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
+                required
+              />
+              <input
+                type="text"
+                name="postalCode"
+                value={shippingInfo.postalCode}
+                onChange={handleShippingInput}
+                placeholder="Postal Code"
+                className="border border-gray-300 p-2 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
+                required
+              />
+              <input
+                type="text"
+                name="country"
+                value={shippingInfo.country}
+                onChange={handleShippingInput}
+                placeholder="Country"
+                className="border border-gray-300 p-2 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
+                required
+              />
               <button
-                className="bg-green-500 text-white px-4 py-2 rounded hover:bg-green-600 mt-4"
+                className="bg-blue-500 text-white px-4 py-2 rounded-md hover:bg-blue-600 mt-2"
                 onClick={placeOrder}
               >
-                Place Order
+                Complete Purchase
+              </button>
+              <button
+                className="text-blue-500 hover:underline mt-2"
+                onClick={() => setShowCheckoutForm(false)}
+              >
+                Cancel
               </button>
             </div>
-          )}
+          </div>
+        )}
+      </div>
+    )}
           <h2 className="text-2xl mt-6 mb-2">My Orders</h2>
           {orders.length === 0 ? (
             <p className="text-gray-600">No orders yet</p>
