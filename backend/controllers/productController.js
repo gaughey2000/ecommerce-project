@@ -37,4 +37,25 @@ const updateProduct = async (req, res) => {
   }
 };
 
-module.exports = { getProducts, updateProduct };
+const addProduct = async (req, res) => {
+  const { name, price, description, stock_quantity, image } = req.body;
+  try {
+    if (!name || !price || !stock_quantity) {
+      return res.status(400).json({ error: 'Name, price, and stock quantity are required' });
+    }
+    if (price <= 0 || stock_quantity < 0) {
+      return res.status(400).json({ error: 'Price must be positive, stock quantity non-negative' });
+    }
+
+    const result = await pool.query(
+      'INSERT INTO products (name, price, description, stock_quantity, image) VALUES ($1, $2, $3, $4, $5) RETURNING product_id, name, price, description, stock_quantity, image',
+      [name, price, description || null, stock_quantity, image || null]
+    );
+    res.status(201).json(result.rows[0]);
+  } catch (error) {
+    console.error('Add product error:', error.stack);
+    res.status(500).json({ error: 'Internal server error', details: error.message });
+  }
+};
+
+module.exports = { getProducts, updateProduct, addProduct };

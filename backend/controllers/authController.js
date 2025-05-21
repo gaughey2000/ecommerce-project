@@ -1,51 +1,84 @@
-const bcrypt = require('bcrypt');
-const jwt = require('jsonwebtoken');
 const pool = require('../db');
-const JWT_SECRET = process.env.JWT_SECRET;
+const jwt = require('jsonwebtoken');
 
 const register = async (req, res) => {
   const { email, password } = req.body;
-  console.log('Register request:', { email });
   try {
-    const existingUser = await pool.query('SELECT * FROM users WHERE email = $1', [email]);
-    if (existingUser.rows.length > 0) {
-      return res.status(400).json({ error: 'Email already exists' });
+    if (!email || !password) {
+      return res.status(400).json({ error: 'Email and password are required' });
     }
-    const hashedPassword = await bcrypt.hash(password, 10);
     const result = await pool.query(
-      'INSERT INTO users (email, password) VALUES ($1, $2) RETURNING user_id, email',
-      [email, hashedPassword]
+      'INSERT INTO users (email, password) VALUES ($1, crypt($2, gen_salt(\'bf\'))) RETURNING user_id, email',
+      [email, password]
     );
-    const user = result.rows[0];
-    const token = jwt.sign({ userId: user.user_id }, JWT_SECRET, { expiresIn: '1h' });
-    console.log('User registered:', user);
-    res.json({ token, userId: user.user_id, email: user.email });
-  } catch (err) {
-    console.error('Register error:', err);
-    res.status(500).json({ error: err.message });
+    const token = jwt.sign({ userId: result.rows[0].user_id }, process.env.JWT_SECRET, { expiresIn: '1h' });
+    res.status(201).json({ userId: result.rows[0].user_id, email: result.rows[0].email, token });
+  } catch (error) {
+    console.error('Register error:', error);
+    res.status(500).json({ error: 'Registration failed', details: error.message });
   }
 };
 
 const login = async (req, res) => {
   const { email, password } = req.body;
-  console.log('Login request:', { email });
   try {
-    const result = await pool.query('SELECT * FROM users WHERE email = $1', [email]);
-    if (result.rows.length === 0 || !result.rows[0].password) {
-      return res.status(401).json({ error: 'Invalid email or password' });
+    const result = await pool.query(
+      'SELECT * FROM users WHERE email = $1 AND password = crypt($2, password)',
+      [email, password]
+    );
+    if (result.rows.length === 0) {
+      return res.status(401).json({ error: 'Invalid credentials' });
     }
     const user = result.rows[0];
-    const isMatch = await bcrypt.compare(password, user.password);
-    if (!isMatch) {
-      return res.status(401).json({ error: 'Invalid email or password' });
-    }
-    const token = jwt.sign({ userId: user.user_id }, JWT_SECRET, { expiresIn: '1h' });
-    console.log('User logged in:', user.user_id);
-    res.json({ token, userId: user.user_id, email: user.email });
-  } catch (err) {
-    console.error('Login error:', err);
-    res.status(500).json({ error: err.message });
+    const token = jwt.sign({ userId: user.user_id }, process.env.JWT_SECRET, { expiresIn: '1h' });
+    res.json({ userId: user.user_id, email: user.email, token });
+  } catch (error) {
+    console.error('Login error:', error);
+    res.status(500).json({ error: 'Login failed', details: error.message });
   }
 };
 
-module.exports = { register, login };
+const deleteUser = async (req, res) => {
+  const { userId } = req.params;
+  try {
+    if (parseInt(userId) === req.user.userId) {
+      return res.status(400).json({ error: 'Cannot delete your own account' });
+    }
+    await pool.query('DELETE FROM cart_items WHERE user_id = $1', [userId]);
+    await pool.query('DELETE FROM order_items WHERE order_id IN (SELECT order_id FROM orders WHERE user_id = $1)', [userId]);
+    await pool.query('DELETE FROM orders WHERE user_id = $1', [userId]);
+    const result = await pool.query('DELETE FROM users WHERE user_id = $1 RETURNING user_id', [userId]);
+    if (result.rowCount === 0) {
+      return res.status(404).json({ error: 'User not found' });
+    }
+    res.json({ message: `User ${userId} deleted` });
+  } catch (error) {
+    console.error('Delete user error:', error.stack);
+    res.status(500).json({ error: 'Internal server error', details: error.message });
+  }
+};
+
+const getCurrentUser = async (req, res) => {
+  try {
+    const result = await pool.query('SELECT user_id, email, is_admin FROM users WHERE user_id = $1', [req.user.userId]);
+    if (result.rows.length === 0) {
+      return res.status(404).json({ error: 'User not found' });
+    }
+    res.json(result.rows[0]);
+  } catch (error) {
+    console.error('Get user error:', error.stack);
+    res.status(500).json({ error: 'Internal server error', details: error.message });
+  }
+};
+
+const getAllUsers = async (req, res) => {
+  try {
+    const result = await pool.query('SELECT user_id, email, is_admin FROM users');
+    res.json(result.rows);
+  } catch (error) {
+    console.error('Get users error:', error.stack);
+    res.status(500).json({ error: 'Internal server error', details: error.message });
+  }
+};
+
+module.exports = { register, login, deleteUser, getCurrentUser, getAllUsers };

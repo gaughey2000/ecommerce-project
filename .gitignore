@@ -41,3 +41,4 @@ public/uploads/
 jest-coverage/
 coverage/
 test-output/
+backend/.env
