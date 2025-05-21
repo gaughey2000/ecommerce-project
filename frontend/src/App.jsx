@@ -50,6 +50,11 @@ function App() {
     postalCode: '',
     country: ''
   });
+  const [paymentInfo, setPaymentInfo] = useState({
+      cardNumber: '',
+      expiry: '',
+      cvv: ''
+    });
 
   // Check for existing token
   useEffect(() => {
@@ -268,53 +273,82 @@ function App() {
   // Calculate cart total
   const cartTotal = cart.reduce((total, item) => total + item.price * item.quantity, 0).toFixed(2);
 
-  // Place order
-  const placeOrder = () => {
-    if (!shippingInfo.address || !shippingInfo.city || !shippingInfo.postalCode || !shippingInfo.country) {
-      setError('Please fill in all shipping information');
-      return;
-    }
-
-    const cartItems = cart.map(item => ({
-      product_id: item.product_id,
-      quantity: item.quantity
-    }));
-
-    fetch('http://localhost:3000/api/checkout', {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        'Authorization': `Bearer ${localStorage.getItem('token')}`
-      },
-      body: JSON.stringify({ cart_items: cartItems, shipping_info: shippingInfo })
-    })
-      .then(res => {
-        if (!res.ok) throw new Error('Failed to place order');
-        return res.json();
-      })
-      .then(data => {
-        setSuccess(`Order placed! Order ID: ${data.orderId}, Total: £${data.total}`);
-        setCart([]);
-        setShippingInfo({ address: '', city: '', postalCode: '', country: '' });
-        setShowCheckoutForm(false);
-        // Refresh orders
-        fetch(`http://localhost:3000/api/orders/user/${user.userId}`, {
-          headers: { 'Authorization': `Bearer ${localStorage.getItem('token')}` }
+    // Place order with payment
+    const placeOrder = () => {
+      if (!shippingInfo.address || !shippingInfo.city || !shippingInfo.postalCode || !shippingInfo.country) {
+        setError('Please fill in all shipping information');
+        return;
+      }
+      if (!paymentInfo.cardNumber || !paymentInfo.expiry || !paymentInfo.cvv) {
+        setError('Please fill in all payment information');
+        return;
+      }
+      // Basic client-side validation
+      if (!/^\d{16}$/.test(paymentInfo.cardNumber.replace(/\s/g, ''))) {
+        setError('Card number must be 16 digits');
+        return;
+      }
+      if (!/^(0[1-9]|1[0-2])\/\d{2}$/.test(paymentInfo.expiry)) {
+        setError('Expiry must be MM/YY');
+        return;
+      }
+      if (!/^\d{3}$/.test(paymentInfo.cvv)) {
+        setError('CVV must be 3 digits');
+        return;
+      }
+  
+      const cartItems = cart.map(item => ({
+        product_id: item.product_id,
+        quantity: item.quantity
+      }));
+  
+      fetch('http://localhost:3000/api/checkout', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${localStorage.getItem('token')}`
+        },
+        body: JSON.stringify({ 
+          cart_items: cartItems, 
+          shipping_info: shippingInfo,
+          payment_info: paymentInfo
         })
-          .then(res => {
-            if (!res.ok) throw new Error('Failed to fetch orders');
-            return res.json();
-          })
-          .then(data => setOrders(data))
-          .catch(err => setError(err.message));
       })
-      .catch(err => setError(err.message));
-  };
+        .then(res => {
+          if (!res.ok) {
+            return res.json().then(err => { throw new Error(err.details || err.error || 'Failed to place order') });
+          }
+          return res.json();
+        })
+        .then(data => {
+          setSuccess(`Order placed! Order ID: ${data.orderId}, Total: £${data.total}`);
+          setCart([]);
+          setShippingInfo({ address: '', city: '', postalCode: '', country: '' });
+          setPaymentInfo({ cardNumber: '', expiry: '', cvv: '' });
+          setShowCheckoutForm(false);
+          fetch(`http://localhost:3000/api/orders/user/${user.userId}`, {
+            headers: { 'Authorization': `Bearer ${localStorage.getItem('token')}` }
+          })
+            .then(res => {
+              if (!res.ok) throw new Error('Failed to fetch orders');
+              return res.json();
+            })
+            .then(data => setOrders(data))
+            .catch(err => setError(err.message));
+        })
+        .catch(err => setError(`Checkout failed: ${err.message}`));
+    };
 
   // Handle shipping info input
   const handleShippingInput = (e) => {
     const { name, value } = e.target;
     setShippingInfo({ ...shippingInfo, [name]: value });
+  };
+
+  // Handle payment info input
+  const handlePaymentInput = (e) => {
+    const { name, value } = e.target;
+    setPaymentInfo({ ...paymentInfo, [name]: value });
   };
 
   // Initiate checkout
@@ -410,110 +444,142 @@ function App() {
         </div>
       )}
 {user && (
-  <>
-    <h2 className="text-2xl mt-6 mb-2">Cart</h2>
-    {cart.length === 0 ? (
-      <p className="text-gray-600">Cart is empty</p>
-    ) : (
-      <div>
-        <ul className="mb-4">
-          {cart.map((item, index) => (
-            <li key={index} className="flex justify-between items-center mb-2">
-              <div className="flex items-center space-x-2">
-                <span>{item.name} (£{Number(item.price).toFixed(2)} each)</span>
-                <button
-                  className="bg-gray-300 text-black px-2 py-1 rounded hover:bg-gray-400"
-                  onClick={() => updateCartQuantity(item.cart_item_id, item.quantity - 1)}
-                >
-                  −
-                </button>
-                <span>Qty: {item.quantity}</span>
-                <button
-                  className="bg-gray-300 text-black px-2 py-1 rounded hover:bg-gray-400"
-                  onClick={() => updateCartQuantity(item.cart_item_id, item.quantity + 1)}
-                >
-                  +
-                </button>
-              </div>
+        <>
+          <h2 className="text-2xl mt-6 mb-2">Cart</h2>
+          {cart.length === 0 ? (
+            <p className="text-gray-600">Cart is empty</p>
+          ) : (
+            <div>
+              <ul className="mb-4">
+                {cart.map((item, index) => (
+                  <li key={index} className="flex justify-between items-center mb-2">
+                    <div className="flex items-center space-x-2">
+                      <span>{item.name} (£{Number(item.price).toFixed(2)} each)</span>
+                      <button
+                        className="bg-gray-300 text-black px-2 py-1 rounded hover:bg-gray-400"
+                        onClick={() => updateCartQuantity(item.cart_item_id, item.quantity - 1)}
+                      >
+                        −
+                      </button>
+                      <span>Qty: {item.quantity}</span>
+                      <button
+                        className="bg-gray-300 text-black px-2 py-1 rounded hover:bg-gray-400"
+                        onClick={() => updateCartQuantity(item.cart_item_id, item.quantity + 1)}
+                      >
+                        +
+                      </button>
+                    </div>
+                    <button
+                      className="bg-red-500 text-white px-2 py-1 rounded hover:bg-red-600"
+                      onClick={() => removeFromCart(item.cart_item_id)}
+                    >
+                      Remove
+                    </button>
+                  </li>
+                ))}
+              </ul>
+              <p className="text-lg font-semibold">Total: £{cartTotal}</p>
               <button
-                className="bg-red-500 text-white px-2 py-1 rounded hover:bg-red-600"
-                onClick={() => removeFromCart(item.cart_item_id)}
+                className="bg-yellow-500 text-white px-4 py-2 rounded hover:bg-yellow-600 mt-4 mr-2"
+                onClick={clearCart}
               >
-                Remove
-              </button>
-            </li>
-          ))}
-        </ul>
-        <p className="text-lg font-semibold">Total: £{cartTotal}</p>
-        <button
-          className="bg-yellow-500 text-white px-4 py-2 rounded hover:bg-yellow-600 mt-4 mr-2"
-          onClick={clearCart}
-        >
-          Clear Cart
-        </button>
-        <button
-          className="bg-green-500 text-white px-4 py-2 rounded hover:bg-green-600 mt-4"
-          onClick={initiateCheckout}
-        >
-          Proceed to Checkout
-        </button>
-        {showCheckoutForm && (
-          <div className="mt-4 p-4 border border-gray-200 rounded-lg">
-            <h3 className="text-xl font-semibold mb-2">Shipping Information</h3>
-            <div className="flex flex-col space-y-2">
-              <input
-                type="text"
-                name="address"
-                value={shippingInfo.address}
-                onChange={handleShippingInput}
-                placeholder="Address"
-                className="border border-gray-300 p-2 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
-                required
-              />
-              <input
-                type="text"
-                name="city"
-                value={shippingInfo.city}
-                onChange={handleShippingInput}
-                placeholder="City"
-                className="border border-gray-300 p-2 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
-                required
-              />
-              <input
-                type="text"
-                name="postalCode"
-                value={shippingInfo.postalCode}
-                onChange={handleShippingInput}
-                placeholder="Postal Code"
-                className="border border-gray-300 p-2 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
-                required
-              />
-              <input
-                type="text"
-                name="country"
-                value={shippingInfo.country}
-                onChange={handleShippingInput}
-                placeholder="Country"
-                className="border border-gray-300 p-2 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
-                required
-              />
-              <button
-                className="bg-blue-500 text-white px-4 py-2 rounded-md hover:bg-blue-600 mt-2"
-                onClick={placeOrder}
-              >
-                Complete Purchase
+                Clear Cart
               </button>
               <button
-                className="text-blue-500 hover:underline mt-2"
-                onClick={() => setShowCheckoutForm(false)}
+                className="bg-green-500 text-white px-4 py-2 rounded hover:bg-green-600 mt-4"
+                onClick={initiateCheckout}
               >
-                Cancel
+                Proceed to Checkout
               </button>
+              {showCheckoutForm && (
+                <div className="mt-4 p-4 border border-gray-200 rounded-lg">
+                  <h3 className="text-xl font-semibold mb-2">Shipping Information</h3>
+                  <div className="flex flex-col space-y-2">
+                    <input
+                      type="text"
+                      name="address"
+                      value={shippingInfo.address}
+                      onChange={handleShippingInput}
+                      placeholder="Address"
+                      className="border border-gray-300 p-2 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
+                      required
+                    />
+                    <input
+                      type="text"
+                      name="city"
+                      value={shippingInfo.city}
+                      onChange={handleShippingInput}
+                      placeholder="City"
+                      className="border border-gray-300 p-2 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
+                      required
+                    />
+                    <input
+                      type="text"
+                      name="postalCode"
+                      value={shippingInfo.postalCode}
+                      onChange={handleShippingInput}
+                      placeholder="Postal Code"
+                      className="border border-gray-300 p-2 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
+                      required
+                    />
+                    <input
+                      type="text"
+                      name="country"
+                      value={shippingInfo.country}
+                      onChange={handleShippingInput}
+                      placeholder="Country"
+                      className="border border-gray-300 p-2 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
+                      required
+                    />
+                  </div>
+                  <h3 className="text-xl font-semibold mt-4 mb-2">Payment Information</h3>
+                  <div className="flex flex-col space-y-2">
+                    <input
+                      type="text"
+                      name="cardNumber"
+                      value={paymentInfo.cardNumber}
+                      onChange={handlePaymentInput}
+                      placeholder="Card Number (16 digits)"
+                      className="border border-gray-300 p-2 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
+                      required
+                    />
+                    <div className="flex space-x-2">
+                      <input
+                        type="text"
+                        name="expiry"
+                        value={paymentInfo.expiry}
+                        onChange={handlePaymentInput}
+                        placeholder="MM/YY"
+                        className="border border-gray-300 p-2 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 flex-1"
+                        required
+                      />
+                      <input
+                        type="text"
+                        name="cvv"
+                        value={paymentInfo.cvv}
+                        onChange={handlePaymentInput}
+                        placeholder="CVV (3 digits)"
+                        className="border border-gray-300 p-2 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 flex-1"
+                        required
+                      />
+                    </div>
+                    <button
+                      className="bg-blue-500 text-white px-4 py-2 rounded-md hover:bg-blue-600 mt-2"
+                      onClick={placeOrder}
+                    >
+                      Complete Purchase
+                    </button>
+                    <button
+                      className="text-blue-500 hover:underline mt-2"
+                      onClick={() => setShowCheckoutForm(false)}
+                    >
+                      Cancel
+                    </button>
+                  </div>
+                </div>
+              )}
             </div>
-          </div>
-        )}
-      </div>
-    )}
+          )}
           <h2 className="text-2xl mt-6 mb-2">My Orders</h2>
           {orders.length === 0 ? (
             <p className="text-gray-600">No orders yet</p>
