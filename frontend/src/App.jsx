@@ -90,17 +90,22 @@ function App() {
     }
   }, []);
 
-  // Fetch products
   useEffect(() => {
     const url = searchQuery
       ? `http://localhost:3000/api/products?query=${encodeURIComponent(searchQuery)}`
       : 'http://localhost:3000/api/products';
     fetch(url)
       .then(res => {
-        if (!res.ok) throw new Error('Failed to fetch products');
+        console.log('Fetch products status:', res.status, res.statusText);
+        if (!res.ok) {
+          return res.text().then(text => {
+            throw new Error(`Failed to fetch products: ${res.status} ${text}`);
+          });
+        }
         return res.json();
       })
       .then(data => {
+        console.log('Fetch products data:', data);
         if (!Array.isArray(data)) throw new Error('Invalid product data format');
         setProducts(data);
       })

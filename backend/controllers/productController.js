@@ -1,21 +1,21 @@
 const pool = require('../db');
 
 const getProducts = async (req, res) => {
+  const { query } = req.query;
   try {
-    const { query } = req.query;
     let result;
     if (query) {
       result = await pool.query(
-        'SELECT * FROM products WHERE name ILIKE $1',
+        'SELECT product_id, name, price, description, stock_quantity, image FROM products WHERE name ILIKE $1 OR description ILIKE $1',
         [`%${query}%`]
       );
     } else {
-      result = await pool.query('SELECT * FROM products');
+      result = await pool.query('SELECT product_id, name, price, description, stock_quantity, image FROM products');
     }
     res.json(result.rows);
-  } catch (err) {
-    console.error('Error fetching products:', err);
-    res.status(500).json({ error: 'Internal server error' });
+  } catch (error) {
+    console.error('Get products error:', error.stack);
+    res.status(500).json({ error: 'Failed to fetch products', details: error.message });
   }
 };
 

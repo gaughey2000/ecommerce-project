@@ -2,37 +2,34 @@ require('dotenv').config();
 console.log('JWT_SECRET:', process.env.JWT_SECRET);
 const express = require('express');
 const cors = require('cors');
-const path = require('path');
 const authRoutes = require('./routes/authRoutes');
+const productRoutes = require('./routes/productRoutes');
 const cartRoutes = require('./routes/cartRoutes');
 const orderRoutes = require('./routes/orderRoutes');
-const productRoutes = require('./routes/productRoutes');
-const uploadRoutes = require('./routes/uploadRoutes');
-const checkoutRoutes = require('./routes/checkoutRoutes');
-
-
 
 const app = express();
-const port = 3000;
 
-// Middleware
 app.use(cors());
 app.use(express.json());
-app.use('/uploads', express.static(path.join(__dirname, 'uploads')));
+app.use('/uploads', express.static('uploads'));
 
-// Routes
-app.use('/api', authRoutes);
-app.use('/api', cartRoutes);
-app.use('/api', orderRoutes);
-app.use('/api', productRoutes);
-app.use('/api', uploadRoutes);
-app.use('/api', checkoutRoutes);
+console.log('Loading routes...');
+try {
+  console.log('Auth routes loaded:', !!authRoutes);
+  console.log('Product routes loaded:', !!productRoutes);
+  console.log('Cart routes loaded:', !!cartRoutes);
+  console.log('Order routes loaded:', !!orderRoutes);
 
-// Basic route
-app.get('/', (req, res) => {
-  res.send('E-commerce API is running');
-});
+  app.use('/api', authRoutes);
+  app.use('/api/products', productRoutes);
+  app.use('/api/cart', cartRoutes);
+  app.use('/api/orders', orderRoutes);
+  console.log('Routes mounted: /api, /api/products, /api/cart, /api/orders');
+} catch (error) {
+  console.error('Error mounting routes:', error);
+}
 
-app.listen(port, () => {
-  console.log(`Server running at http://localhost:${port}`);
+const PORT = process.env.PORT || 3000;
+app.listen(PORT, () => {
+  console.log(`Server running on port ${PORT}`);
 });
