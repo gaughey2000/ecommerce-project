@@ -25,6 +25,7 @@ try {
 
   app.use('/api', authRoutes);
   app.use('/api/products', productRoutes);
+  console.log('Mounting cart routes');
   app.use('/api/cart', cartRoutes);
   app.use('/api/orders', orderRoutes);
   app.use(notFound);
