@@ -1,12 +1,13 @@
 const { Pool } = require('pg');
 
 const pool = new Pool({
-  user: process.env.USER,
+  user: process.env.PGUSER,     
   host: 'localhost',
   database: 'ecommerce',
   password: '',
   port: 5432
 });
+
 
 // Test database connection
 pool.connect((err, client, release) => {
@@ -17,5 +18,6 @@ pool.connect((err, client, release) => {
   console.log('Successfully connected to the ecommerce database');
   release();
 });
+
 
 module.exports = pool;

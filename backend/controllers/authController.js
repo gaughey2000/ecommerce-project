@@ -1,6 +1,7 @@
 const pool = require('../db');
 const jwt = require('jsonwebtoken');
 
+
 const register = async (req, res) => {
   const { email, password } = req.body;
   try {

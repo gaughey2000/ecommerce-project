@@ -6,6 +6,9 @@ const authRoutes = require('./routes/authRoutes');
 const productRoutes = require('./routes/productRoutes');
 const cartRoutes = require('./routes/cartRoutes');
 const orderRoutes = require('./routes/orderRoutes');
+const notFound = require('./middleware/notFound');
+const errorHandler = require('./middleware/errorHandler');
+
 
 const app = express();
 
@@ -24,6 +27,9 @@ try {
   app.use('/api/products', productRoutes);
   app.use('/api/cart', cartRoutes);
   app.use('/api/orders', orderRoutes);
+  app.use(notFound);
+  app.use(errorHandler);
+
   console.log('Routes mounted: /api, /api/products, /api/cart, /api/orders');
 } catch (error) {
   console.error('Error mounting routes:', error);
