@@ -3,47 +3,59 @@ import { authFetch } from '../services/api';
 import { AuthContext } from '../context/AuthContext';
 
 export default function CartPage() {
-    const { user } = useContext(AuthContext);
-    const [cart, setCart] = useState([]);
-    const [error, setError] = useState('');
-    const [loading, setLoading] = useState(true);
-    
+  const { user } = useContext(AuthContext);
+  const [cart, setCart] = useState([]);
+  const [error, setError] = useState('');
+  const [loading, setLoading] = useState(true);
 
-    useEffect(() => {
-        if (user) {
-          authFetch('http://localhost:3000/api/cart')
-            .then(res => {
-              if (!res.ok) throw new Error('Failed to fetch cart');
-              return res.json();
-            })
-            .then(data => {
-              if (!Array.isArray(data)) throw new Error('Cart is not an array');
-              setCart(data);
-              setError('');
-            })
-            .catch(err => setError(err.message))
-            .finally(() => setLoading(false));
-        }
-      }, [user]);
-      
+  useEffect(() => {
+    if (user) {
+      authFetch('/cart')
+        .then(res => {
+          if (!res.ok) throw new Error('Failed to fetch cart');
+          return res.json();
+        })
+        .then(data => {
+          setCart(data);
+          setError('');
+        })
+        .catch(err => setError(err.message))
+        .finally(() => setLoading(false));
+    }
+  }, [user]);
 
   const updateQuantity = (itemId, quantity) => {
     if (quantity < 1) return;
-    authFetch(`http://localhost:3000/api/cart/${itemId}`, {
-      method: 'PUT',
-      body: JSON.stringify({ quantity })
+    authFetch(`/cart/${itemId}`, {
+      method: 'PATCH',
+      body: JSON.stringify({ quantity }),
     })
-      .then(res => res.json())
-      .then(data => setCart(prev => prev.map(i => i.cart_item_id === itemId ? { ...i, quantity: data.quantity } : i)))
-      .catch(err => setError('Failed to update quantity'));
+      .then(res => {
+        if (!res.ok) throw new Error('Failed to update quantity');
+        return res.json();
+      })
+      .then(updatedItem => {
+        setCart(prev =>
+          prev.map(item =>
+            item.cart_item_id === itemId
+              ? { ...item, quantity: updatedItem.quantity } // keep name and price intact
+              : item
+          )
+        );
+      })
+      .catch(err => setError(err.message));
   };
+  
 
   const removeItem = (itemId) => {
     authFetch(`http://localhost:3000/api/cart/${itemId}`, {
-      method: 'DELETE'
+      method: 'DELETE',
     })
-      .then(() => setCart(prev => prev.filter(i => i.cart_item_id !== itemId)))
-      .catch(err => setError('Failed to remove item'));
+      .then(res => {
+        if (!res.ok) throw new Error('Failed to remove item');
+        setCart(prev => prev.filter(item => item.cart_item_id !== itemId));
+      })
+      .catch(err => setError(err.message));
   };
 
   const total = cart.reduce((sum, item) => sum + item.price * item.quantity, 0).toFixed(2);
@@ -58,25 +70,33 @@ export default function CartPage() {
       {cart.length === 0 ? (
         <p>Your cart is empty.</p>
       ) : (
-        <div>
+        <>
           <ul className="space-y-4">
             {cart.map(item => (
               <li key={item.cart_item_id} className="flex justify-between items-center border-b pb-2">
                 <div>
                   <p className="font-semibold">{item.name}</p>
-                  <p>£{item.price} × {item.quantity}</p>
+                  <p>
+                    £{item.price} × {item.quantity}
+                  </p>
                 </div>
                 <div className="flex items-center gap-2">
-                  <button onClick={() => updateQuantity(item.cart_item_id, item.quantity - 1)} className="px-2 py-1 bg-gray-200">−</button>
+                  <button onClick={() => updateQuantity(item.cart_item_id, item.quantity - 1)} className="px-2 py-1 bg-gray-200 rounded">
+                    −
+                  </button>
                   <span>{item.quantity}</span>
-                  <button onClick={() => updateQuantity(item.cart_item_id, item.quantity + 1)} className="px-2 py-1 bg-gray-200">+</button>
-                  <button onClick={() => removeItem(item.cart_item_id)} className="px-2 py-1 bg-red-500 text-white ml-2">Remove</button>
+                  <button onClick={() => updateQuantity(item.cart_item_id, item.quantity + 1)} className="px-2 py-1 bg-gray-200 rounded">
+                    +
+                  </button>
+                  <button onClick={() => removeItem(item.cart_item_id)} className="px-2 py-1 bg-red-500 text-white rounded ml-2">
+                    Remove
+                  </button>
                 </div>
               </li>
             ))}
           </ul>
           <p className="text-xl font-bold mt-4">Total: £{total}</p>
-        </div>
+        </>
       )}
     </div>
   );

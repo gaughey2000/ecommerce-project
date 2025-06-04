@@ -2,6 +2,7 @@ const jwt = require('jsonwebtoken');
 
 const auth = (req, res, next) => {
   const authHeader = req.headers['authorization'];
+  console.log('Auth header:', authHeader);
   const token = authHeader && authHeader.split(' ')[1];
   if (!token) {
     return res.status(401).json({ error: 'Access token required' });
@@ -15,5 +16,6 @@ const auth = (req, res, next) => {
     next();
   });
 };
+
 
 module.exports = auth;

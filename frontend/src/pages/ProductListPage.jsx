@@ -10,7 +10,7 @@ export default function ProductListPage() {
   const [success, setSuccess] = useState('');
 
   useEffect(() => {
-    authFetch('http://localhost:3000/api/products')
+    authFetch('/products')
       .then(res => {
         if (!res.ok) throw new Error('Failed to fetch products');
         return res.json();
@@ -23,9 +23,9 @@ export default function ProductListPage() {
     setError('');
     setSuccess('');
     try {
-      const res = await authFetch('http://localhost:3000/api/cart', {
+      const res = await authFetch('/cart', {
         method: 'POST',
-        body: JSON.stringify({ product_id: productId, quantity: 1 })
+        body: JSON.stringify({ productId, quantity: 1 }) // <-- Changed here
       });
       const data = await res.json();
       if (!res.ok) throw new Error(data.error || 'Add to cart failed');
@@ -34,6 +34,7 @@ export default function ProductListPage() {
       setError(err.message);
     }
   };
+  
 
   const filtered = products.filter(product =>
     product.name.toLowerCase().includes(search.toLowerCase())
@@ -66,12 +67,8 @@ export default function ProductListPage() {
                 <p className="text-gray-700 text-sm">{product.description}</p>
                 <p className="text-green-600 font-bold">£{Number(product.price).toFixed(2)}</p>
                 {user && (
-                  <button
-                    onClick={() => handleAddToCart(product.product_id)}
-                    className="bg-blue-600 text-white px-4 py-2 mt-2 rounded hover:bg-blue-700"
-                  >
-                    Add to Cart
-                  </button>
+                  <button onClick={() => handleAddToCart(product.product_id)}>Add to Cart</button>
+
                 )}
               </div>
             );

@@ -4,6 +4,9 @@ import ProductListPage from './pages/ProductListPage';
 import Navbar from './components/Navbar';
 import ProtectedRoute from './components/ProtectedRoute';
 import CartPage from './pages/CartPage';
+import CheckoutPage from './pages/CheckoutPage';
+import OrderConfirmationPage from './pages/OrderConfirmarionPage';
+import OrderHistoryPage from './pages/OrderHistoryPage';
 
 export default function App() {
   return (
@@ -12,11 +15,38 @@ export default function App() {
       <Routes>
         <Route path="/" element={<ProductListPage />} />
         <Route path="/login" element={<LoginPage />} />
-        <Route path="/cart" element={
-          <ProtectedRoute>
-            <CartPage />
-          </ProtectedRoute>
-        } />
+        <Route
+          path="/cart"
+          element={
+            <ProtectedRoute>
+              <CartPage />
+            </ProtectedRoute>
+          }
+        />
+        <Route
+          path="/checkout"
+          element={
+            <ProtectedRoute>
+              <CheckoutPage />
+            </ProtectedRoute>
+          }
+        />
+        <Route
+          path="/order-confirmation/:orderId"
+          element={
+            <ProtectedRoute>
+              <OrderConfirmationPage />
+            </ProtectedRoute>
+          }
+        />
+        <Route
+          path="/orders"
+          element={
+            <ProtectedRoute>
+              <OrderHistoryPage />
+            </ProtectedRoute>
+          }
+        />
       </Routes>
     </>
   );

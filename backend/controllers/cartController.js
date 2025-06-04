@@ -127,5 +127,22 @@ const clearCart = async (req, res) => {
     res.status(500).json({ error: err.message });
   }
 };
+const getCart = async (req, res) => {
+  const userId = req.user.userId;
+  try {
+    const result = await pool.query(
+      `SELECT ci.cart_item_id, p.product_id, p.name, p.price, ci.quantity
+       FROM cart_items ci
+       JOIN products p ON ci.product_id = p.product_id
+       WHERE ci.user_id = $1`,
+      [userId]
+    );
+    res.json(result.rows);
+  } catch (error) {
+    console.error('Get cart error:', error);
+    res.status(500).json({ error: 'Failed to fetch cart' });
+  }
+};
 
-module.exports = { addToCart, updateCartQuantity, removeFromCart, clearCart };
+
+module.exports = { addToCart, updateCartQuantity, removeFromCart, clearCart, getCart };

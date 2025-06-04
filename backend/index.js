@@ -9,12 +9,17 @@ const orderRoutes = require('./routes/orderRoutes');
 const notFound = require('./middleware/notFound');
 const errorHandler = require('./middleware/errorHandler');
 
-
 const app = express();
 
 app.use(cors());
 app.use(express.json());
 app.use('/uploads', express.static('uploads'));
+
+// Debug middleware: log every incoming request
+app.use((req, res, next) => {
+  console.log(`Incoming request: ${req.method} ${req.path}`);
+  next();
+});
 
 console.log('Loading routes...');
 try {
@@ -27,6 +32,7 @@ try {
   app.use('/api/products', productRoutes);
   console.log('Mounting cart routes');
   app.use('/api/cart', cartRoutes);
+  console.log('Mounting order routes');
   app.use('/api/orders', orderRoutes);
   app.use(notFound);
   app.use(errorHandler);

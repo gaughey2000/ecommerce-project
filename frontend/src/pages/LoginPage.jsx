@@ -19,11 +19,14 @@ export default function LoginPage() {
       });
       const data = await res.json();
       if (!res.ok) throw new Error(data.error || 'Login failed');
-      login({ token: data.token, email: data.email });
+      localStorage.setItem('token', data.token);       // <--- THIS
+      localStorage.setItem('email', data.email);       // <--- AND THIS
+      login({ token: data.token, email: data.email }); // Update context
     } catch (err) {
       setError(err.message);
     }
   };
+  
 
   return (
     <form onSubmit={handleSubmit} className="max-w-md mx-auto mt-20">
