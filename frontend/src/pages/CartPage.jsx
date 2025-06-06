@@ -1,4 +1,5 @@
 import { useEffect, useState, useContext } from 'react';
+import { useNavigate } from 'react-router-dom';
 import { authFetch } from '../services/api';
 import { AuthContext } from '../context/AuthContext';
 
@@ -7,6 +8,7 @@ export default function CartPage() {
   const [cart, setCart] = useState([]);
   const [error, setError] = useState('');
   const [loading, setLoading] = useState(true);
+  const navigate = useNavigate();
 
   useEffect(() => {
     if (user) {
@@ -38,17 +40,16 @@ export default function CartPage() {
         setCart(prev =>
           prev.map(item =>
             item.cart_item_id === itemId
-              ? { ...item, quantity: updatedItem.quantity } // keep name and price intact
+              ? { ...item, quantity: updatedItem.quantity }
               : item
           )
         );
       })
       .catch(err => setError(err.message));
   };
-  
 
   const removeItem = (itemId) => {
-    authFetch(`http://localhost:3000/api/cart/${itemId}`, {
+    authFetch(`/cart/${itemId}`, {
       method: 'DELETE',
     })
       .then(res => {
@@ -96,8 +97,15 @@ export default function CartPage() {
             ))}
           </ul>
           <p className="text-xl font-bold mt-4">Total: £{total}</p>
+          <button
+            className="mt-4 bg-green-600 text-white px-4 py-2 rounded hover:bg-green-700"
+            onClick={() => navigate('/checkout')}
+          >
+            Proceed to Checkout
+          </button>
         </>
       )}
     </div>
   );
 }
+

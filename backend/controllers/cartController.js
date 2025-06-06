@@ -4,6 +4,7 @@ const addToCart = async (req, res) => {
   const { productId, quantity } = req.body;
   const userId = req.user.userId;
   console.log('Cart request:', { userId, productId, quantity });
+  console.log('Incoming add-to-cart:', req.body);
   try {
     const product = await pool.query(
       'SELECT stock_quantity FROM products WHERE product_id = $1',

@@ -8,6 +8,7 @@ const cartRoutes = require('./routes/cartRoutes');
 const orderRoutes = require('./routes/orderRoutes');
 const notFound = require('./middleware/notFound');
 const errorHandler = require('./middleware/errorHandler');
+const adminRoutes = require('./routes/adminRoutes');
 
 const app = express();
 
@@ -28,12 +29,13 @@ try {
   console.log('Cart routes loaded:', !!cartRoutes);
   console.log('Order routes loaded:', !!orderRoutes);
 
-  app.use('/api', authRoutes);
+  app.use('/api/auth', authRoutes);
   app.use('/api/products', productRoutes);
-  console.log('Mounting cart routes');
   app.use('/api/cart', cartRoutes);
-  console.log('Mounting order routes');
   app.use('/api/orders', orderRoutes);
+  app.use('/api/admin', adminRoutes);
+  
+  
   app.use(notFound);
   app.use(errorHandler);
 

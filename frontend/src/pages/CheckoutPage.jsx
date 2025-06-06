@@ -1,14 +1,21 @@
 import { useState, useContext } from 'react';
+import { useNavigate } from 'react-router-dom';
 import { AuthContext } from '../context/AuthContext';
 import { authFetch } from '../services/api';
 
 export default function CheckoutPage() {
   const { user } = useContext(AuthContext);
-  const [form, setForm] = useState({ name: '', email: '', address: '' });
+  const navigate = useNavigate();
+  const [form, setForm] = useState({
+    name: '',
+    email: localStorage.getItem('email') || '',
+    address: ''
+  });
   const [error, setError] = useState('');
   const [success, setSuccess] = useState('');
 
-  const handleChange = e => setForm({ ...form, [e.target.name]: e.target.value });
+  const handleChange = e =>
+    setForm({ ...form, [e.target.name]: e.target.value });
 
   const handleSubmit = async e => {
     e.preventDefault();
@@ -26,13 +33,11 @@ export default function CheckoutPage() {
         body: JSON.stringify(form),
       });
 
-      if (!res.ok) {
-        const data = await res.json();
-        throw new Error(data.error || 'Order submission failed');
-      }
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error || 'Order submission failed');
 
-      setSuccess('Order placed successfully!');
-      setForm({ name: '', email: '', address: '' });
+      // Redirect to confirmation page
+      navigate(`/order-confirmation/${data.orderId}`);
     } catch (err) {
       setError(err.message);
     }
@@ -73,7 +78,10 @@ export default function CheckoutPage() {
         required
       />
 
-      <button type="submit" className="w-full bg-blue-600 text-white p-2 rounded hover:bg-blue-700">
+      <button
+        type="submit"
+        className="w-full bg-blue-600 text-white p-2 rounded hover:bg-blue-700"
+      >
         Place Order
       </button>
     </form>

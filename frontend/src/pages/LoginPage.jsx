@@ -1,5 +1,7 @@
 import { useState, useContext } from 'react';
 import { AuthContext } from '../context/AuthContext';
+import { authFetch } from '../services/api';
+
 
 export default function LoginPage() {
   const { login } = useContext(AuthContext);
@@ -12,16 +14,16 @@ export default function LoginPage() {
     e.preventDefault();
     setError('');
     try {
-      const res = await fetch('http://localhost:3000/api/login', {
+      const res = await authFetch('/auth/login', {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(form),
       });
+      
       const data = await res.json();
       if (!res.ok) throw new Error(data.error || 'Login failed');
-      localStorage.setItem('token', data.token);       // <--- THIS
-      localStorage.setItem('email', data.email);       // <--- AND THIS
-      login({ token: data.token, email: data.email }); // Update context
+      localStorage.setItem('token', data.token);  
+      localStorage.setItem('email', data.email);      
+      login({ token: data.token, email: data.email }); 
     } catch (err) {
       setError(err.message);
     }
