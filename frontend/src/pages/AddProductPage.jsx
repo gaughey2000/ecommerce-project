@@ -26,33 +26,38 @@ export default function AddProductPage() {
     e.preventDefault();
     setError('');
     setSuccess('');
-
-    const formData = new FormData();
-    for (const key in form) {
-      formData.append(key, form[key]);
+  
+    const trimmedName = form.name?.trim();
+  
+    if (
+      !trimmedName ||
+      isNaN(form.price) || form.price <= 0 ||
+      isNaN(form.stock_quantity) || form.stock_quantity < 0
+    ) {
+      setError('Please provide a valid name, price > 0, and stock ≥ 0');
+      return;
     }
-    if (image) {
-      formData.append('image', image);
-    }
-
+  
     try {
       const res = await authFetch('/products', {
         method: 'POST',
-        body: formData
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ ...form, name: trimmedName }),
       });
-
+  
       const data = await res.json();
       if (!res.ok) throw new Error(data.error || 'Product creation failed');
-
+  
       setSuccess('Product added successfully');
       setForm({ name: '', price: '', description: '', stock_quantity: '' });
-      setImage(null);
-
+  
       setTimeout(() => navigate('/admin'), 1500);
     } catch (err) {
       setError(err.message);
     }
   };
+  
+  
 
   return (
     <div className="max-w-md mx-auto mt-10 p-4 border rounded shadow">
@@ -81,6 +86,7 @@ export default function AddProductPage() {
         <input
           type="number"
           step="0.01"
+          min="0.01"
           name="price"
           value={form.price}
           onChange={handleChange}
@@ -99,6 +105,7 @@ export default function AddProductPage() {
         <input
           type="number"
           name="stock_quantity"
+          min="0.01"
           value={form.stock_quantity}
           onChange={handleChange}
           placeholder="Stock quantity"

@@ -1,79 +1,96 @@
 const pool = require('../db');
 
+// Controller to handle checkout: create an order from the user's cart and process payment
 const checkout = async (req, res) => {
-  const { cart_items, shipping_info, payment_info } = req.body;
   const userId = req.user.userId;
+  const { shipping_info, payment_info } = req.body;
+
+  // Validate shipping information
+  if (!shipping_info || !shipping_info.name || !shipping_info.email || !shipping_info.address) {
+    return res.status(400).json({
+      error: 'Incomplete shipping information: name, email, and address required'
+    });
+  }
+
+  // Validate payment information
+  if (!payment_info || !payment_info.cardNumber || !payment_info.expiry || !payment_info.cvv) {
+    return res.status(400).json({
+      error: 'Incomplete payment information: cardNumber, expiry, and cvv required'
+    });
+  }
+
   try {
-    if (!cart_items || !Array.isArray(cart_items) || cart_items.length === 0) {
-      return res.status(400).json({ error: 'Cart is empty or invalid' });
-    }
-    if (!payment_info || !payment_info.cardNumber || !payment_info.expiry || !payment_info.cvv) {
-      return res.status(400).json({ error: 'Payment information incomplete' });
+    // 1. Fetch cart items for this user
+    const cartQuery = `
+      SELECT ci.product_id, ci.quantity, p.price
+      FROM cart_items ci
+      JOIN products p ON ci.product_id = p.product_id
+      WHERE ci.user_id = $1
+    `;
+    const cartResult = await pool.query(cartQuery, [userId]);
+
+    if (cartResult.rows.length === 0) {
+      return res.status(400).json({ error: 'Cart is empty' });
     }
 
-    // Mock payment processing
-    const paymentResult = mockProcessPayment(payment_info);
-    if (!paymentResult.success) {
-      return res.status(400).json({ error: paymentResult.message });
-    }
-
+    // 2. Calculate total amount
     let total = 0;
-    for (const item of cart_items) {
-      const product = await pool.query(
-        'SELECT price, stock_quantity FROM products WHERE product_id = $1',
-        [item.product_id]
-      );
-      if (product.rows.length === 0) {
-        return res.status(404).json({ error: `Product ID ${item.product_id} not found` });
-      }
-      const { price, stock_quantity } = product.rows[0];
-      if (item.quantity > stock_quantity) {
-        return res.status(400).json({ error: `Insufficient stock for product ID ${item.product_id}` });
-      }
-      total += price * item.quantity;
+    cartResult.rows.forEach(item => {
+      total += parseFloat(item.price) * item.quantity;
+    });
+
+    // 3. Simulate/mock payment processing
+    // (Replace with real payment gateway integration as needed)
+    const paymentSuccess = true;
+    if (!paymentSuccess) {
+      return res.status(400).json({ error: 'Payment processing failed' });
     }
 
-    const orderResult = await pool.query(
-      'INSERT INTO orders (user_id, total_amount, status, shipping_address, shipping_city, shipping_postal_code, shipping_country) VALUES ($1, $2, $3, $4, $5, $6, $7) RETURNING order_id',
-      [userId, total, 'completed', shipping_info.address, shipping_info.city, shipping_info.postalCode, shipping_info.country]
-    );
+    // 4. Create order record
+    const insertOrderSQL = `
+      INSERT INTO orders (user_id, status, total_amount, name, email, address)
+      VALUES ($1, $2, $3, $4, $5, $6)
+      RETURNING order_id
+    `;
+    const orderResult = await pool.query(insertOrderSQL, [
+      userId,
+      'completed',
+      total,
+      shipping_info.name,
+      shipping_info.email,
+      shipping_info.address
+    ]);
     const orderId = orderResult.rows[0].order_id;
 
-    for (const item of cart_items) {
-      const product = await pool.query(
-        'SELECT price FROM products WHERE product_id = $1',
-        [item.product_id]
-      );
-      const unitPrice = product.rows[0].price;
+    // 5. Insert each cart item into order_items and update stock
+    const insertItemSQL = `
+      INSERT INTO order_items (order_id, product_id, quantity, unit_price)
+      VALUES ($1, $2, $3, $4)
+    `;
+    for (const item of cartResult.rows) {
+      await pool.query(insertItemSQL, [
+        orderId,
+        item.product_id,
+        item.quantity,
+        item.price
+      ]);
 
-      await pool.query(
-        'INSERT INTO order_items (order_id, product_id, quantity, unit_price) VALUES ($1, $2, $3, $4)',
-        [orderId, item.product_id, item.quantity, unitPrice]
-      );
-
+      // Deduct stock
       await pool.query(
         'UPDATE products SET stock_quantity = stock_quantity - $1 WHERE product_id = $2',
         [item.quantity, item.product_id]
       );
     }
 
+    // 6. Clear the user's cart
     await pool.query('DELETE FROM cart_items WHERE user_id = $1', [userId]);
 
-    res.json({ orderId, total, status: 'completed' });
+    // 7. Respond with the new order ID and total
+    return res.status(201).json({ orderId, total });
   } catch (error) {
     console.error('Checkout error:', error.stack);
-    res.status(500).json({ error: 'Internal server error', details: error.message });
+    return res.status(500).json({ error: 'Internal server error', details: error.message });
   }
-};
-
-const mockProcessPayment = (paymentInfo) => {
-  const random = Math.random();
-  if (random < 0.05) {
-    return { success: false, message: 'Invalid payment details' };
-  } else if (random < 0.20) {
-    return { success: false, message: 'Payment declined' };
-  }
-  return { success: true, message: 'Payment accepted' };
 };
 
 module.exports = { checkout };

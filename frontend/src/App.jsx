@@ -10,6 +10,8 @@ import OrderHistoryPage from './pages/OrderHistoryPage';
 import AdminRoute from './components/AdminRoute';
 import AdminDashboardPage from './pages/AdminDashboardPage';
 import AddProductPage from './pages/AddProductPage';
+import EditProductPage from './pages/EditProductPage';
+import RegisterPage from './pages/RegisterPage';
 
 
 export default function App() {
@@ -67,6 +69,16 @@ export default function App() {
             </AdminRoute>
           }
         />
+        <Route
+          path="/admin/edit-product/:id"
+          element={
+            <AdminRoute>
+              <EditProductPage />
+            </AdminRoute>
+          }
+        />
+        <Route path="/register" element={<RegisterPage />} />
+
 
       </Routes>
 

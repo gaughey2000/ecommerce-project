@@ -1,50 +1,59 @@
-require('dotenv').config();
-console.log('JWT_SECRET:', process.env.JWT_SECRET);
+const path = require('path');
+require('dotenv').config({ path: path.resolve(__dirname, '../.env') });
+
 const express = require('express');
 const cors = require('cors');
+const { Pool } = require('pg');
+
 const authRoutes = require('./routes/authRoutes');
 const productRoutes = require('./routes/productRoutes');
 const cartRoutes = require('./routes/cartRoutes');
 const orderRoutes = require('./routes/orderRoutes');
+const adminRoutes = require('./routes/adminRoutes');
+const uploadRoutes = require('./routes/uploadRoutes');
+const checkoutRoutes = require('./routes/checkoutRoutes');
+
 const notFound = require('./middleware/notFound');
 const errorHandler = require('./middleware/errorHandler');
-const adminRoutes = require('./routes/adminRoutes');
 
 const app = express();
 
+// Database connection
+const pool = new Pool({
+  user: process.env.PGUSER,
+  host: process.env.PGHOST,
+  database: process.env.PGDATABASE,
+  port: parseInt(process.env.PGPORT, 10),
+  password: process.env.PGPASSWORD || undefined,
+});
+
+pool
+  .connect()
+  .then(() => console.log('🔌 Successfully connected to the ecommerce database'))
+  .catch(err => console.error('❌ DB connection error:', err));
+
+// Middleware
 app.use(cors());
 app.use(express.json());
 app.use('/uploads', express.static('uploads'));
 
-// Debug middleware: log every incoming request
-app.use((req, res, next) => {
-  console.log(`Incoming request: ${req.method} ${req.path}`);
-  next();
-});
+// API Routes
+app.use('/api/auth', authRoutes);
+app.use('/api/products', productRoutes);
+app.use('/api/cart', cartRoutes);
+app.use('/api/orders', orderRoutes);
+app.use('/api/admin', adminRoutes);
+app.use('/api/uploads', uploadRoutes);
+app.use('/api/checkout', checkoutRoutes);
 
-console.log('Loading routes...');
-try {
-  console.log('Auth routes loaded:', !!authRoutes);
-  console.log('Product routes loaded:', !!productRoutes);
-  console.log('Cart routes loaded:', !!cartRoutes);
-  console.log('Order routes loaded:', !!orderRoutes);
+// Error handling
+app.use(notFound);
+app.use(errorHandler);
 
-  app.use('/api/auth', authRoutes);
-  app.use('/api/products', productRoutes);
-  app.use('/api/cart', cartRoutes);
-  app.use('/api/orders', orderRoutes);
-  app.use('/api/admin', adminRoutes);
-  
-  
-  app.use(notFound);
-  app.use(errorHandler);
-
-  console.log('Routes mounted: /api, /api/products, /api/cart, /api/orders');
-} catch (error) {
-  console.error('Error mounting routes:', error);
-}
-
+// Start server
 const PORT = process.env.PORT || 3000;
 app.listen(PORT, () => {
-  console.log(`Server running on port ${PORT}`);
+  console.log(`🚀 Server running on port ${PORT}`);
 });
+
+module.exports = { app, pool };
