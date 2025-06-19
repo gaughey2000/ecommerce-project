@@ -5,7 +5,9 @@ const addToCart = async (req, res) => {
   const userId = req.user.userId;
   console.log('Cart request:', { userId, productId, quantity });
   console.log('Incoming add-to-cart:', req.body);
+
   try {
+    // Verify product exists
     const product = await pool.query(
       'SELECT stock_quantity FROM products WHERE product_id = $1',
       [productId]
@@ -15,35 +17,47 @@ const addToCart = async (req, res) => {
     }
     const stock = product.rows[0].stock_quantity;
 
+    // Check existing cart quantity
     const existingItem = await pool.query(
       'SELECT quantity FROM cart_items WHERE user_id = $1 AND product_id = $2',
       [userId, productId]
     );
-    const currentQuantity = existingItem.rows.length > 0 ? existingItem.rows[0].quantity : 0;
+    const currentQuantity = existingItem.rows.length
+      ? existingItem.rows[0].quantity
+      : 0;
     const newTotalQuantity = currentQuantity + quantity;
 
     if (newTotalQuantity > stock) {
-      return res.status(400).json({ error: `Insufficient stock. Only ${stock} available.` });
+      return res
+        .status(400)
+        .json({ error: `Insufficient stock. Only ${stock} available.` });
     }
 
-    if (existingItem.rows.length > 0) {
+    // Update or insert, but send 201 on success
+    if (existingItem.rows.length) {
       const result = await pool.query(
-        'UPDATE cart_items SET quantity = quantity + $1 WHERE user_id = $2 AND product_id = $3 RETURNING *',
+        `UPDATE cart_items
+         SET quantity = quantity + $1
+         WHERE user_id = $2 AND product_id = $3
+         RETURNING *`,
         [quantity, userId, productId]
       );
       console.log('Cart item updated:', result.rows[0]);
-      res.json(result.rows[0]);
+      return res.status(201).json(result.rows[0]);
     } else {
       const result = await pool.query(
-        'INSERT INTO cart_items (user_id, product_id, quantity) VALUES ($1, $2, $3) RETURNING *',
+        `INSERT INTO cart_items (user_id, product_id, quantity)
+         VALUES ($1, $2, $3)
+         RETURNING *`,
         [userId, productId, quantity]
       );
       console.log('Cart item inserted:', result.rows[0]);
-      res.json(result.rows[0]);
+      return res.status(201).json(result.rows[0]);
     }
+
   } catch (err) {
     console.error('Cart error:', err);
-    res.status(500).json({ error: err.message });
+    return res.status(500).json({ error: err.message });
   }
 };
 

@@ -48,13 +48,13 @@ const checkout = async (req, res) => {
 
     // 4. Create order record
     const insertOrderSQL = `
-      INSERT INTO orders (user_id, status, total_amount, name, email, address)
-      VALUES ($1, $2, $3, $4, $5, $6)
-      RETURNING order_id
-    `;
+    INSERT INTO orders (user_id, status, total_amount, name, email, address)
+    VALUES ($1, $2, $3, $4, $5, $6)
+    RETURNING order_id
+  `;
     const orderResult = await pool.query(insertOrderSQL, [
       userId,
-      'completed',
+      'pending',
       total,
       shipping_info.name,
       shipping_info.email,

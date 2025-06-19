@@ -5,15 +5,20 @@ import react from '@vitejs/plugin-react'
 // https://vite.dev/config/
 export default defineConfig({
   plugins: [
-    react(), 
+    react(),
     tailwindcss(),
   ],
+  server: {
+    proxy: {
+      '/api': 'http://localhost:3000' // ✅ backend runs here
+    }
+  },
   optimizeDeps: {
-    exclude: ['jwt-decode'], // Prevent Vite from pre-bundling jwt-decode
+    exclude: ['jwt-decode'],
   },
   resolve: {
     alias: {
-      'jwt-decode': '/node_modules/jwt-decode', // Ensure direct module resolution
+      'jwt-decode': '/node_modules/jwt-decode',
     },
   }
 });
