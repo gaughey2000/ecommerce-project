@@ -8,7 +8,8 @@ export const AuthProvider = ({ children }) => {
   const [user, setUser] = useState(() => {
     const token = localStorage.getItem('token');
     const email = localStorage.getItem('email');
-    if (!token) return null;
+
+    if (!token || !email) return null;
 
     try {
       const decoded = jwtDecode(token);
@@ -31,7 +32,8 @@ export const AuthProvider = ({ children }) => {
   };
 
   const logout = () => {
-    localStorage.clear();
+    localStorage.removeItem('token');
+    localStorage.removeItem('email');
     setUser(null);
   };
 
@@ -43,4 +45,3 @@ export const AuthProvider = ({ children }) => {
 };
 
 export const useAuth = () => useContext(AuthContext);
-

@@ -1,10 +1,12 @@
 import { useState, useContext } from 'react';
 import { AuthContext } from '../context/AuthContext';
 import { authFetch } from '../services/api';
+import { useNavigate } from 'react-router-dom';
 
 
 export default function LoginPage() {
   const { login } = useContext(AuthContext);
+  const navigate = useNavigate();
   const [form, setForm] = useState({ email: '', password: '' });
   const [error, setError] = useState('');
 
@@ -18,12 +20,23 @@ export default function LoginPage() {
         method: 'POST',
         body: JSON.stringify(form),
       });
-      
+  
       const data = await res.json();
       if (!res.ok) throw new Error(data.error || 'Login failed');
-      localStorage.setItem('token', data.token);  
-      localStorage.setItem('email', data.email);      
-      login({ token: data.token, email: data.email }); 
+  
+      // Save to localStorage (optional, depending on your AuthContext setup)
+      localStorage.setItem('token', data.token);
+      localStorage.setItem('email', data.email);
+      localStorage.setItem('isAdmin', data.isAdmin); // ✅
+  
+      // Pass into auth context
+      login({
+        token: data.token,
+        email: data.email,
+        isAdmin: data.isAdmin, // ✅
+      });
+  
+      navigate('/home');
     } catch (err) {
       setError(err.message);
     }

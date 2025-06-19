@@ -12,43 +12,65 @@ export default function Navbar() {
   };
 
   return (
-    <nav className="bg-gray-800 text-white px-4 py-3 flex justify-between items-center">
-      <div className="flex gap-4">
-        <Link to="/" className="hover:underline">
-          Home
-        </Link>
-        {user && (
-          <>
-            <Link to="/cart" className="hover:underline">
-              Cart
-            </Link>
-            <Link to="/checkout" className="hover:underline">
-              Checkout
-            </Link>
-          </>
-        )}
-      </div>
-      <div className="flex items-center gap-4">
-        {user ? (
-          <>
-            <span className="text-sm">
-              Logged in as <strong>{user.email}</strong>
-            </span>
-            <button
-              onClick={handleLogout}
-              className="bg-red-500 px-3 py-1 rounded hover:bg-red-600"
-            >
-              Logout
-            </button>
-          </>
-        ) : (
-          <Link
-            to="/login"
-            className="bg-blue-500 px-3 py-1 rounded hover:bg-blue-600"
-          >
-            Login
+    <nav className="bg-gray-900 text-white px-6 py-4 shadow-md">
+      <div className="max-w-7xl mx-auto flex justify-between items-center">
+        {/* Left Nav */}
+        <div className="flex items-center gap-6 text-sm font-medium">
+          <Link to="/" className="hover:text-blue-400 transition-colors">
+            Home
           </Link>
-        )}
+          {user && (
+            <>
+              <Link to="/products" className="hover:text-blue-400 transition-colors">
+                Products
+              </Link>
+              <Link to="/cart" className="hover:text-blue-400 transition-colors">
+                Cart
+              </Link>
+              <Link to="/checkout" className="hover:text-blue-400 transition-colors">
+                Checkout
+              </Link>
+              <Link to="/user" className="hover:text-blue-400 transition-colors">
+                My Account
+              </Link>
+              {user.isAdmin && (
+                <Link to="/admin" className="hover:text-yellow-400 transition-colors">
+                  Admin Panel
+                </Link>
+              )}
+            </>
+          )}
+        </div>
+
+        {/* Right Auth Area */}
+        <div className="flex items-center gap-4 text-sm">
+          {user ? (
+            <>
+              <span className="text-gray-300 flex items-center gap-2">
+                Logged in as{' '}
+                <span className="font-semibold text-white">{user.email}</span>
+                {user.isAdmin && (
+                  <span className="text-xs bg-yellow-400 text-black px-2 py-0.5 rounded-full">
+                    Admin
+                  </span>
+                )}
+              </span>
+              <button
+                onClick={handleLogout}
+                className="bg-red-600 hover:bg-red-700 text-white px-3 py-1.5 rounded transition"
+              >
+                Logout
+              </button>
+            </>
+          ) : (
+            <Link
+              to="/login"
+              className="bg-blue-600 hover:bg-blue-700 text-white px-4 py-1.5 rounded transition"
+            >
+              Login
+            </Link>
+          )}
+        </div>
       </div>
     </nav>
   );

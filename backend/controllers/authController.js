@@ -36,7 +36,12 @@ const login = async (req, res) => {
       process.env.JWT_SECRET,
       { expiresIn: '7d' }
     );
-    res.json({ userId: user.user_id, email: user.email, token });
+    res.json({
+      userId: user.user_id,
+      email: user.email,
+      isAdmin: user.is_admin,
+      token,
+    });
   } catch (error) {
     console.error('Login error:', error);
     res.status(500).json({ error: 'Login failed', details: error.message });

@@ -12,14 +12,16 @@ import AdminDashboardPage from './pages/AdminDashboardPage';
 import AddProductPage from './pages/AddProductPage';
 import EditProductPage from './pages/EditProductPage';
 import RegisterPage from './pages/RegisterPage';
-
+import HomePage from './pages/HomePage';
+import UserPage from './pages/UserPage';
+import UnauthorizedPage from './pages/UnauthorizedPage';
 
 export default function App() {
   return (
     <>
       <Navbar />
       <Routes>
-        <Route path="/" element={<ProductListPage />} />
+        <Route path="/products" element={<ProductListPage />} />
         <Route path="/login" element={<LoginPage />} />
         <Route
           path="/cart"
@@ -78,8 +80,23 @@ export default function App() {
           }
         />
         <Route path="/register" element={<RegisterPage />} />
-
-
+        <Route
+          path="/"
+          element={
+            <ProtectedRoute>
+              <HomePage />
+            </ProtectedRoute>
+            }
+          />
+          <Route
+            path="/user"
+            element={
+              <ProtectedRoute>
+                <UserPage />
+              </ProtectedRoute>
+            }
+          />
+        <Route path="/unauthorized" element={<UnauthorizedPage />} />
       </Routes>
 
 
