@@ -15,6 +15,7 @@ export default function LoginPage() {
   const handleSubmit = async e => {
     e.preventDefault();
     setError('');
+  
     try {
       const res = await authFetch('/auth/login', {
         method: 'POST',
@@ -24,24 +25,19 @@ export default function LoginPage() {
       const data = await res.json();
       if (!res.ok) throw new Error(data.error || 'Login failed');
   
-      // Save to localStorage (optional, depending on your AuthContext setup)
-      localStorage.setItem('token', data.token);
-      localStorage.setItem('email', data.email);
-      localStorage.setItem('isAdmin', data.isAdmin); // ✅
-  
-      // Pass into auth context
+      // Store in context and localStorage via login()
       login({
         token: data.token,
         email: data.email,
-        isAdmin: data.isAdmin, // ✅
+        username: data.username,  // ✅ now included
+        isAdmin: data.isAdmin,
       });
   
-      navigate('/home');
+      navigate('/');
     } catch (err) {
       setError(err.message);
     }
   };
-  
 
   return (
     <form onSubmit={handleSubmit} className="max-w-md mx-auto mt-20">

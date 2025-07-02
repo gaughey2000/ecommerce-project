@@ -3,17 +3,31 @@ const jwt = require('jsonwebtoken');
 
 
 const register = async (req, res) => {
-  const { email, password } = req.body;
+  const { email, password, username } = req.body;
+
   try {
-    if (!email || !password) {
-      return res.status(400).json({ error: 'Email and password are required' });
+    if (!email || !password || !username) {
+      return res.status(400).json({ error: 'Email, password, and username are required' });
     }
+
     const result = await pool.query(
-      'INSERT INTO users (email, password) VALUES ($1, crypt($2, gen_salt(\'bf\'))) RETURNING user_id, email',
-      [email, password]
+      'INSERT INTO users (email, password, username) VALUES ($1, crypt($2, gen_salt(\'bf\')), $3) RETURNING user_id, email, username',
+      [email, password, username]
     );
-    const token = jwt.sign({ userId: result.rows[0].user_id }, process.env.JWT_SECRET, { expiresIn: '30d' });
-    res.status(201).json({ userId: result.rows[0].user_id, email: result.rows[0].email, token });
+
+    const token = jwt.sign(
+      { userId: result.rows[0].user_id },
+      process.env.JWT_SECRET,
+      { expiresIn: '30d' }
+    );
+
+    res.status(201).json({
+      userId: result.rows[0].user_id,
+      email: result.rows[0].email,
+      username: result.rows[0].username,
+      token
+    });
+
   } catch (error) {
     console.error('Register error:', error);
     res.status(500).json({ error: 'Registration failed', details: error.message });
@@ -24,7 +38,7 @@ const login = async (req, res) => {
   const { email, password } = req.body;
   try {
     const result = await pool.query(
-      'SELECT * FROM users WHERE email = $1 AND password = crypt($2, password)',
+      'SELECT user_id, email, username, is_admin FROM users WHERE email = $1 AND password = crypt($2, password)',
       [email, password]
     );
     if (result.rows.length === 0) {
@@ -39,6 +53,7 @@ const login = async (req, res) => {
     res.json({
       userId: user.user_id,
       email: user.email,
+      username: user.username,
       isAdmin: user.is_admin,
       token,
     });
@@ -70,10 +85,15 @@ const deleteUser = async (req, res) => {
 
 const getCurrentUser = async (req, res) => {
   try {
-    const result = await pool.query('SELECT user_id, email, is_admin FROM users WHERE user_id = $1', [req.user.userId]);
+    const result = await pool.query(
+      'SELECT user_id, email, username, is_admin FROM users WHERE user_id = $1',
+      [req.user.userId]
+    );
+
     if (result.rows.length === 0) {
       return res.status(404).json({ error: 'User not found' });
     }
+
     res.json(result.rows[0]);
   } catch (error) {
     console.error('Get user error:', error.stack);
@@ -90,5 +110,39 @@ const getAllUsers = async (req, res) => {
     res.status(500).json({ error: 'Internal server error', details: error.message });
   }
 };
+const changePassword = async (req, res) => {
+  const { current, new: newPassword } = req.body;
 
-module.exports = { register, login, deleteUser, getCurrentUser, getAllUsers };
+  if (!current || !newPassword) {
+    return res.status(400).json({ error: 'Both current and new password are required.' });
+  }
+
+  if (newPassword.length < 8) {
+    return res.status(400).json({ error: 'New password must be at least 8 characters long.' });
+  }
+
+  try {
+    // Validate current password
+    const result = await pool.query(
+      'SELECT user_id FROM users WHERE user_id = $1 AND password = crypt($2, password)',
+      [req.user.userId, current]
+    );
+
+    if (result.rowCount === 0) {
+      return res.status(401).json({ error: 'Current password is incorrect.' });
+    }
+
+    // Update to new password
+    await pool.query(
+      'UPDATE users SET password = crypt($1, gen_salt(\'bf\')) WHERE user_id = $2',
+      [newPassword, req.user.userId]
+    );
+
+    res.json({ message: 'Password updated successfully.' });
+  } catch (error) {
+    console.error('Change password error:', error);
+    res.status(500).json({ error: 'Password update failed.', details: error.message });
+  }
+};
+
+module.exports = { register, login, deleteUser, getCurrentUser, getAllUsers, changePassword };

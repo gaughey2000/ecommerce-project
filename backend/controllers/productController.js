@@ -41,8 +41,11 @@ const addProduct = async (req, res) => {
   if (!name || price == null || stock_quantity == null) {
     return res.status(400).json({ error: 'Name, price, and stock quantity are required' });
   }
-  if (price <= 0 || stock_quantity < 0) {
-    return res.status(400).json({ error: 'Price must be positive, stock quantity non-negative' });
+  if (price <= 0) {
+    return res.status(400).json({ error: 'Price must be positive' });
+  }
+  if (stock_quantity < 0) {
+    return res.status(400).json({ error: 'Stock quantity cannot be negative' });
   }
   try {
     const result = await pool.query(
@@ -68,6 +71,14 @@ const addProduct = async (req, res) => {
 const updateProduct = async (req, res) => {
   const { id } = req.params;
   const { name, price, description, stock_quantity, image } = req.body;
+
+  if (price <= 0) {
+    return res.status(400).json({ error: 'Price must be positive' });
+  }
+  if (stock_quantity < 0) {
+    return res.status(400).json({ error: 'Stock quantity cannot be negative' });
+  }
+
   try {
     const result = await pool.query(
       `UPDATE products

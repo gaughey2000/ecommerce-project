@@ -8,24 +8,35 @@ export const AuthProvider = ({ children }) => {
   const [user, setUser] = useState(() => {
     const token = localStorage.getItem('token');
     const email = localStorage.getItem('email');
+    const username = localStorage.getItem('username');
 
     if (!token || !email) return null;
 
     try {
       const decoded = jwtDecode(token);
-      return { token, email, isAdmin: decoded.isAdmin };
+      return {
+        token,
+        email,
+        username,
+        isAdmin: decoded.isAdmin,
+      };
     } catch (err) {
       console.error('Invalid token', err);
       return null;
     }
   });
 
-  const login = ({ token, email }) => {
+  const login = ({ token, email, username, isAdmin }) => {
     try {
-      const decoded = jwtDecode(token);
       localStorage.setItem('token', token);
       localStorage.setItem('email', email);
-      setUser({ token, email, isAdmin: decoded.isAdmin });
+      localStorage.setItem('username', username || '');
+      setUser({
+        token,
+        email,
+        username,
+        isAdmin: isAdmin ?? jwtDecode(token).isAdmin,
+      });
     } catch (err) {
       console.error('Token decode failed', err);
     }
@@ -34,6 +45,7 @@ export const AuthProvider = ({ children }) => {
   const logout = () => {
     localStorage.removeItem('token');
     localStorage.removeItem('email');
+    localStorage.removeItem('username');
     setUser(null);
   };
 

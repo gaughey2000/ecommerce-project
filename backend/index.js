@@ -12,6 +12,7 @@ const orderRoutes = require('./routes/orderRoutes');
 const adminRoutes = require('./routes/adminRoutes');
 const uploadRoutes = require('./routes/uploadRoutes');
 const checkoutRoutes = require('./routes/checkoutRoutes');
+const userRoutes = require('./routes/user');
 
 const notFound = require('./middleware/notFound');
 const errorHandler = require('./middleware/errorHandler');
@@ -45,6 +46,7 @@ app.use('/api/orders', orderRoutes);
 app.use('/api/admin', adminRoutes);
 app.use('/api/uploads', uploadRoutes);
 app.use('/api/checkout', checkoutRoutes);
+app.use('/api/users', userRoutes);
 
 // Error handling
 app.use(notFound);

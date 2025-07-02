@@ -33,6 +33,8 @@ export default function AdminDashboardPage() {
         pRes.json(),
       ]);
 
+      console.log('Fetched products:', p);
+
       setUsers(u);
       setOrders(o);
       setProducts(p);
@@ -68,7 +70,7 @@ export default function AdminDashboardPage() {
         const items = await res.json();
 
         const enrichedItems = items.map(item => {
-          const product = products.find(p => p.product_id === item.product_id);
+          const product = products.find(p => p.id === item.product_id);
           return {
             ...item,
             productName: product?.name || `Product #${item.product_id}`,
@@ -97,7 +99,6 @@ export default function AdminDashboardPage() {
     if (!window.confirm('Delete this product?')) return;
     try {
       const res = await authFetch(`/admin/products/${productId}`, { method: 'DELETE' });
-
       if (!res.ok) throw new Error('Delete failed');
       await fetchAdminData();
     } catch (err) {
@@ -207,13 +208,11 @@ export default function AdminDashboardPage() {
         {products.length ? (
           <ul className="grid grid-cols-1 sm:grid-cols-2 gap-2">
             {products.map(product => (
-              <li key={product.product_id} className="bg-gray-100 p-2 rounded shadow flex justify-between items-center">
+              <li key={product.id} className="bg-gray-100 p-2 rounded shadow flex justify-between items-center">
                 <span>{product.name}</span>
                 <div className="space-x-2">
-                  <Link to={`/admin/edit-product/${product.product_id}`} className="text-blue-600 hover:underline text-sm">
-                    Edit
-                  </Link>
-                  <button onClick={() => deleteProduct(product.product_id)} className="text-red-600 hover:underline text-sm">
+                  <Link to={`/admin/edit-product/${product.id}`} className="text-blue-600 hover:underline text-sm">Edit</Link>
+                  <button onClick={() => deleteProduct(product.id)} className="text-red-600 hover:underline text-sm">
                     Delete
                   </button>
                 </div>

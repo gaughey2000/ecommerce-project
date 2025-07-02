@@ -23,6 +23,13 @@ export default function ProductListPage() {
   const handleAddToCart = async (productId) => {
     setError('');
     setSuccess('');
+
+    const product = products.find(p => p.product_id === productId);
+    if (product.stock_quantity < 0) {
+      setError('Cannot add a product with negative stock');
+      return;
+    }
+
     try {
       const res = await authFetch('/cart', {
         method: 'POST',

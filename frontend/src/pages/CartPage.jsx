@@ -1,5 +1,5 @@
 import { useEffect, useState, useContext } from 'react';
-import { useNavigate } from 'react-router-dom';
+import { useNavigate, Link } from 'react-router-dom';
 import { authFetch } from '../services/api';
 import { AuthContext } from '../context/AuthContext';
 
@@ -49,6 +49,7 @@ export default function CartPage() {
   };
 
   const removeItem = (itemId) => {
+    if (!window.confirm('Remove this item from cart?')) return;
     authFetch(`/cart/${itemId}`, {
       method: 'DELETE',
     })
@@ -69,16 +70,21 @@ export default function CartPage() {
       <h1 className="text-2xl font-bold mb-4">Your Cart</h1>
       {error && <p className="text-red-500 mb-4">{error}</p>}
       {cart.length === 0 ? (
-        <p>Your cart is empty.</p>
+        <p>Your cart is empty. <Link to="/products" className="text-blue-600 underline">Browse products</Link>.</p>
       ) : (
         <>
           <ul className="space-y-4">
             {cart.map(item => (
-              <li key={item.cart_item_id} className="flex justify-between items-center border-b pb-2">
-                <div>
+              <li key={item.cart_item_id} className="flex gap-4 items-center border-b pb-2">
+                <img
+                  src={`http://localhost:3000${item.image || '/placeholder.jpg'}`}
+                  alt={item.name}
+                  className="w-16 h-16 rounded object-cover"
+                />
+                <div className="flex-1">
                   <p className="font-semibold">{item.name}</p>
                   <p>
-                    £{item.price} × {item.quantity}
+                    £{item.price} × {item.quantity} = <strong>£{(item.price * item.quantity).toFixed(2)}</strong>
                   </p>
                 </div>
                 <div className="flex items-center gap-2">
@@ -108,4 +114,3 @@ export default function CartPage() {
     </div>
   );
 }
-
