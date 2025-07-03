@@ -13,6 +13,11 @@ export default function CheckoutPage() {
   });
   const [error, setError] = useState('');
   const [success, setSuccess] = useState('');
+  const [payment, setPayment] = useState({
+    cardNumber: '',
+    expiry: '',
+    cvv: ''
+  });
 
   const handleChange = e =>
     setForm({ ...form, [e.target.name]: e.target.value });
@@ -22,15 +27,34 @@ export default function CheckoutPage() {
     setError('');
     setSuccess('');
 
-    if (!form.name || !form.email || !form.address) {
+    if (!form.name || !form.email || !form.address || !payment.cardNumber || !payment.expiry || !payment.cvv) {
       setError('Please fill in all required fields');
       return;
     }
+    if (payment.cvv.length !== 3) {
+      setError('CVV must be 3 digits');
+      return;
+    }
+    if (!/^\d{2}\/\d{2}$/.test(payment.expiry)) {
+      setError('Expiry date must be in MM/YY format');
+      return;
+    }
+    if (!/^\d{16}$/.test(payment.cardNumber)) {
+      setError('Card number must be 16 digits');
+      return;
+    }
+    setSuccess('Processing your order...');
+    localStorage.setItem('email', form.email); // Save email for future use
+    setTimeout(() => setSuccess(''), 3000);
+
 
     try {
       const res = await authFetch('/orders', {
         method: 'POST',
-        body: JSON.stringify(form),
+        body: JSON.stringify({
+          shipping_info: form,
+          payment_info: payment
+        }),
       });
 
       const data = await res.json();
@@ -42,6 +66,10 @@ export default function CheckoutPage() {
       setError(err.message);
     }
   };
+
+  const handlePaymentChange = e => {
+    setPayment({ ...payment, [e.target.name]: e.target.value });
+  }
 
   if (!user) return <p className="mt-10 text-center">Please login to checkout.</p>;
 
@@ -75,6 +103,33 @@ export default function CheckoutPage() {
         onChange={handleChange}
         placeholder="Shipping Address"
         className="w-full p-2 mb-3 border rounded"
+        required
+      />
+      <input
+        name="cardNumber"
+        type="text"
+        value={payment.cardNumber}
+        onChange={handlePaymentChange}
+        placeholder="Card Number"
+        className="w-full p-2 border rounded mb-3"
+        required
+      />
+      <input
+        name="expiry"
+        type="text"
+        value={payment.expiry}
+        onChange={handlePaymentChange}
+        placeholder="Expiry Date (MM/YY)"
+        className="w-full p-2 border rounded mb-3"
+        required
+      />
+      <input
+        name="cvv"
+        type="text"
+        value={payment.cvv}
+        onChange={handlePaymentChange}
+        placeholder="CVV"
+        className="w-full p-2 border rounded mb-3"
         required
       />
 

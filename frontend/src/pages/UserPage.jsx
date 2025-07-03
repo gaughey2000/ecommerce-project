@@ -27,8 +27,23 @@ export default function UserPage() {
   const handleProfileChange = e =>
     setProfile({ ...profile, [e.target.name]: e.target.value });
 
-  const handlePwChange = e =>
+  const handlePwChange = e => {
+    if (!passwordForm.current || !passwordForm.new || !passwordForm.confirm) {
+      setPwMessage('All fields are required');
+      return;
+    }
+    if (passwordForm.new !== passwordForm.confirm) {
+      setPwMessage('New passwords do not match');
+      return;
+    }
+    if (passwordForm.new.length < 8) {
+      setPwMessage('Password must be at least 8 characters long');
+      return;
+    }
     setPasswordForm({ ...passwordForm, [e.target.name]: e.target.value });
+
+  }
+    
 
   const updateProfile = async e => {
     e.preventDefault();
