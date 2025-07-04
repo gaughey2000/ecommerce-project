@@ -9,6 +9,7 @@ export default function UserPage() {
   const [orders, setOrders] = useState([]);
   const [message, setMessage] = useState('');
   const [pwMessage, setPwMessage] = useState('');
+  const [preview, setPreview] = useState(null);
 
   useEffect(() => {
     const fetchData = async () => {
@@ -27,26 +28,25 @@ export default function UserPage() {
   const handleProfileChange = e =>
     setProfile({ ...profile, [e.target.name]: e.target.value });
 
-  const handlePwChange = e => {
-    if (!passwordForm.current || !passwordForm.new || !passwordForm.confirm) {
-      setPwMessage('All fields are required');
-      return;
-    }
-    if (passwordForm.new !== passwordForm.confirm) {
-      setPwMessage('New passwords do not match');
-      return;
-    }
-    if (passwordForm.new.length < 8) {
-      setPwMessage('Password must be at least 8 characters long');
-      return;
-    }
+  const handlePwChange = (e) => {
     setPasswordForm({ ...passwordForm, [e.target.name]: e.target.value });
-
-  }
+  };
     
 
-  const updateProfile = async e => {
+  const updateProfile = async (e) => {
     e.preventDefault();
+    setMessage('');
+    const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+  
+    if (!profile.username || !profile.email) {
+      setMessage('❌ Both name and email are required');
+      return;
+    }
+    if (!emailRegex.test(profile.email)) {
+      setMessage('❌ Please enter a valid email address');
+      return;
+    }
+  
     try {
       const res = await authFetch('/users/me', {
         method: 'PATCH',
@@ -54,47 +54,52 @@ export default function UserPage() {
       });
       const data = await res.json();
       if (!res.ok) throw new Error(data.error);
-      login({
-        token: user.token,
-        email: data.email,
-        username: data.username,
-        isAdmin: user.isAdmin,
-      });
-      setMessage('✅ Profile updated!');
+      setMessage('✅ Profile updated successfully');
     } catch (err) {
       setMessage(`❌ ${err.message}`);
     }
   };
 
-  const changePassword = async e => {
+  const changePassword = async (e) => {
     e.preventDefault();
-    if (passwordForm.new !== passwordForm.confirm) {
+    setPwMessage('');
+  
+    const { current, new: newPw, confirm } = passwordForm;
+  
+    if (!current || !newPw || !confirm) {
+      setPwMessage('❌ All fields are required');
+      return;
+    }
+    if (newPw !== confirm) {
       setPwMessage('❌ New passwords do not match');
       return;
     }
+    if (newPw.length < 8 || !/[A-Z]/.test(newPw) || !/\d/.test(newPw)) {
+      setPwMessage('❌ Password must be 8+ chars, include 1 uppercase and 1 number');
+      return;
+    }
+  
     try {
       const res = await authFetch('/auth/change-password', {
         method: 'POST',
-        body: JSON.stringify(passwordForm),
+        body: JSON.stringify({ current, new: newPw }),
       });
       const data = await res.json();
       if (!res.ok) throw new Error(data.error);
       setPwMessage('✅ Password updated!');
-      setPasswordForm({ current: '', new: '' });
+      setPasswordForm({ current: '', new: '', confirm: '' });
     } catch (err) {
       setPwMessage(`❌ ${err.message}`);
     }
   };
-
   return (
     <div className="max-w-4xl mx-auto p-6 mt-10 space-y-12">
       <h1 className="text-3xl font-bold text-center">My Profile</h1>
       <div className="flex flex-col items-center mb-6">
-        <img
-          src={profile.profile_image || '/default-avatar.png'}
-          alt="Profile"
-          className="w-24 h-24 rounded-full object-cover mb-2 border-2 border-gray-300"
-        />
+      <img
+        src={preview || profile.profile_image || '/default-avatar.png'}
+        alt="Profile"
+      />
         <label className="text-blue-600 cursor-pointer text-sm hover:underline">
           Change photo
           <input
@@ -103,12 +108,24 @@ export default function UserPage() {
             hidden
             onChange={async (e) => {
               const file = e.target.files[0];
+              if (!file) return;
+              setPreview(URL.createObjectURL(file));
               const formData = new FormData();
+              if (!file.type.startsWith('image/')) {
+                alert('Please upload an image file');
+                return;
+              }
+              
+              if (file.size > 2 * 1024 * 1024) { // 2MB limit
+                alert('Image must be under 2MB');
+                return;
+              }
               formData.append('image', file);
               const res = await authFetch('/users/me/image', {
                 method: 'POST',
                 body: formData,
               });
+              
               if (res.ok) {
                 const updated = await res.json();
                 setProfile(prev => ({ ...prev, profile_image: updated.profile_image }));

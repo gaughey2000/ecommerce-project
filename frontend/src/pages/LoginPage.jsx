@@ -1,38 +1,27 @@
 import { useState, useContext } from 'react';
 import { AuthContext } from '../context/AuthContext';
-import { authFetch } from '../services/api';
 import { useNavigate } from 'react-router-dom';
-
 
 export default function LoginPage() {
   const { login } = useContext(AuthContext);
-  const navigate = useNavigate();
-  const [form, setForm] = useState({ email: '', password: '' });
+  const [email, setEmail] = useState('');
+  const [password, setPassword] = useState('');
   const [error, setError] = useState('');
-
-  const handleChange = e => setForm({ ...form, [e.target.name]: e.target.value });
+  const navigate = useNavigate();
 
   const handleSubmit = async e => {
     e.preventDefault();
     setError('');
-  
+
     try {
-      const res = await authFetch('/auth/login', {
+      const res = await fetch('/api/auth/login', {
         method: 'POST',
-        body: JSON.stringify(form),
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ email, password })
       });
-  
       const data = await res.json();
       if (!res.ok) throw new Error(data.error || 'Login failed');
-  
-      // Store in context and localStorage via login()
-      login({
-        token: data.token,
-        email: data.email,
-        username: data.username,  // ✅ now included
-        isAdmin: data.isAdmin,
-      });
-  
+      login(data);
       navigate('/');
     } catch (err) {
       setError(err.message);
@@ -40,27 +29,34 @@ export default function LoginPage() {
   };
 
   return (
-    <form onSubmit={handleSubmit} className="max-w-md mx-auto mt-20">
-      <h1 className="text-xl font-bold mb-4">Login</h1>
-      {error && <p className="text-red-500">{error}</p>}
-      <input
-        name="email"
-        type="email"
-        value={form.email}
-        onChange={handleChange}
-        placeholder="Email"
-        className="block w-full mb-2 p-2 border"
-      />
-      <input
-        name="password"
-        type="password"
-        value={form.password}
-        onChange={handleChange}
-        placeholder="Password"
-        className="block w-full mb-4 p-2 border"
-      />
-      <button className="bg-blue-600 text-white px-4 py-2 rounded">Login</button>
-    </form>
+    <div className="min-h-screen flex items-center justify-center bg-gray-100 px-4">
+      <form
+        onSubmit={handleSubmit}
+        className="w-full max-w-md p-6 bg-white rounded shadow-md space-y-4"
+      >
+        <h1 className="text-2xl font-bold text-center">Login</h1>
+        {error && <p className="text-red-600 text-sm text-center">{error}</p>}
+        <input
+          type="email"
+          placeholder="Email"
+          value={email}
+          onChange={e => setEmail(e.target.value)}
+          className="w-full p-2 border border-gray-300 rounded"
+        />
+        <input
+          type="password"
+          placeholder="Password"
+          value={password}
+          onChange={e => setPassword(e.target.value)}
+          className="w-full p-2 border border-gray-300 rounded"
+        />
+        <button
+          type="submit"
+          className="w-full bg-blue-600 text-white py-2 rounded hover:bg-blue-700"
+        >
+          Sign In
+        </button>
+      </form>
+    </div>
   );
 }
-

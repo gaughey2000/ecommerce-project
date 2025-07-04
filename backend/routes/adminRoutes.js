@@ -7,10 +7,14 @@ const {
   getAllOrders,
   updateOrderStatus,
   deleteUser,
-  updateProduct
+  updateProduct,
+  getMetrics
 } = require('../controllers/adminController');
 const { deleteProduct } = require('../controllers/adminController');
+const { getOrderItemsByOrderId } = require('../controllers/adminController'); 
 
+// Middleware for getting order items by order ID
+router.get('/orders/:id/items', getOrderItemsByOrderId);
 // Admin middleware
 router.use(auth);
 router.use(isAdmin);
@@ -24,5 +28,7 @@ router.patch('/orders/:id', updateOrderStatus);
 
 router.delete('/products/:id', deleteProduct);
 router.put('/products/:id', updateProduct); // optional for editing
+
+router.get('/api/admin/metrics', getMetrics)
 
 module.exports = router;

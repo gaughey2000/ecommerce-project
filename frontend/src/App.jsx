@@ -1,7 +1,6 @@
 import { Routes, Route, Navigate } from 'react-router-dom';
 import LoginPage from './pages/LoginPage';
 import ProductListPage from './pages/ProductListPage';
-import Navbar from './components/Navbar';
 import ProtectedRoute from './components/ProtectedRoute';
 import CartPage from './pages/CartPage';
 import CheckoutPage from './pages/CheckoutPage';
@@ -15,14 +14,13 @@ import RegisterPage from './pages/RegisterPage';
 import HomePage from './pages/HomePage';
 import UserPage from './pages/UserPage';
 import UnauthorizedPage from './pages/UnauthorizedPage';
+import Layout from './components/Layout';
 
 export default function App() {
   return (
-    <>
-      <Navbar />
-      <Routes>
+    <Routes>
+      <Route element={<Layout />}>
         <Route path="/products" element={<ProductListPage />} />
-        <Route path="/login" element={<LoginPage />} />
         <Route
           path="/cart"
           element={
@@ -79,27 +77,28 @@ export default function App() {
             </AdminRoute>
           }
         />
-        <Route path="/register" element={<RegisterPage />} />
         <Route
           path="/"
           element={
             <ProtectedRoute>
               <HomePage />
             </ProtectedRoute>
-            }
-          />
-          <Route
-            path="/user"
-            element={
-              <ProtectedRoute>
-                <UserPage />
-              </ProtectedRoute>
-            }
-          />
-        <Route path="/unauthorized" element={<UnauthorizedPage />} />
-      </Routes>
+          }
+        />
+        <Route
+          path="/user"
+          element={
+            <ProtectedRoute>
+              <UserPage />
+            </ProtectedRoute>
+          }
+        />
+      </Route>
 
-
-    </>
+      {/* Outside layout (no nav) */}
+      <Route path="/login" element={<LoginPage />} />
+      <Route path="/register" element={<RegisterPage />} />
+      <Route path="/unauthorized" element={<UnauthorizedPage />} />
+    </Routes>
   );
 }

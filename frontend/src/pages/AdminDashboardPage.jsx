@@ -10,6 +10,7 @@ export default function AdminDashboardPage() {
   const [expandedOrders, setExpandedOrders] = useState({});
   const [orderItems, setOrderItems] = useState({});
   const navigate = useNavigate();
+  const totalRevenue = orders.reduce((sum, order) => sum + Number(order.total_amount), 0);
 
   useEffect(() => {
     fetchAdminData();
@@ -83,6 +84,17 @@ export default function AdminDashboardPage() {
       }
     }
   }
+  const toggleOrderDetails = async (orderId) => {
+    setExpandedOrders(prev => ({ ...prev, [orderId]: !prev[orderId] }));
+  
+    if (!orderItems[orderId]) {
+      const res = await authFetch(`/admin/orders/${orderId}/items`);
+      if (res.ok) {
+        const data = await res.json();
+        setOrderItems(prev => ({ ...prev, [orderId]: data }));
+      }
+    }
+  };
 
   async function deleteUser(userId) {
     if (!window.confirm('Are you sure you want to delete this user?')) return;
@@ -107,10 +119,24 @@ export default function AdminDashboardPage() {
   }
 
   const filteredOrders = orders.filter(order => order.status === filter);
+  function StatCard({ title, value }) {
+    return (
+      <div className="bg-white p-4 rounded shadow text-center">
+        <p className="text-sm text-gray-500">{title}</p>
+        <p className="text-xl font-bold mt-1">{value}</p>
+      </div>
+    );
+  }
 
   return (
     <div className="p-6 max-w-5xl mx-auto">
       <h1 className="text-3xl font-bold mb-8">Admin Dashboard</h1>
+
+      <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 mb-8">
+        <StatCard title="Total Users" value={users.length} />
+        <StatCard title="Total Orders" value={orders.length} />
+        <StatCard title="Total Revenue" value={`£${totalRevenue.toFixed(2)}`} />
+      </div>
 
       {/* USERS */}
       <section className="mb-8">
@@ -140,6 +166,7 @@ export default function AdminDashboardPage() {
         <div className="flex justify-between items-center mb-4">
           <h2 className="text-2xl font-semibold">Orders</h2>
           <div className="space-x-2">
+
             <button
               onClick={() => setFilter('pending')}
               className={`px-4 py-1 rounded ${filter === 'pending' ? 'bg-yellow-500 text-white' : 'bg-gray-200 hover:bg-gray-300'}`}

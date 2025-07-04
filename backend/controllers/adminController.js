@@ -97,3 +97,36 @@ exports.getAllUsers = async (req, res) => {
       res.status(500).json({ error: 'Failed to update product' });
     }
   };
+  exports.getOrderItemsByOrderId = async (req, res) => {
+    const orderId = req.params.id;
+    try {
+      const result = await db.query(`
+        SELECT oi.quantity, oi.unit_price, p.name AS product_name
+        FROM order_items oi
+        JOIN products p ON oi.product_id = p.product_id
+        WHERE oi.order_id = $1
+      `, [orderId]);
+  
+      res.json(result.rows);
+    } catch (err) {
+      console.error('Failed to fetch order items:', err);
+      res.status(500).json({ error: 'Could not retrieve order items' });
+    }
+  };
+
+  exports.getMetrics = async (req, res) => {
+    try{
+      const usersResult = await db.query('SELECT COUNT(*) FROM users');
+      const ordersResult = await db.query('SELECT COUNT(*) FROM orders');
+      const productsResult = await db.query('SELECT COUNT(*) FROM products');
+  
+      res.json({
+        totalUsers: parseInt(usersResult.rows[0].count, 10),
+        totalOrders: parseInt(ordersResult.rows[0].count, 10),
+        totalProducts: parseInt(productsResult.rows[0].count, 10),
+      });
+    } catch (err) {
+      console.error('getMetrics failed:', err);
+      res.status(500).json({ error: 'Failed to fetch metrics' });
+    }
+  }

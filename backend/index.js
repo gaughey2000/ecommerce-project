@@ -1,5 +1,5 @@
 const path = require('path');
-require('dotenv').config({ path: path.resolve(__dirname, '../.env') });
+require('dotenv').config(); // No path override
 
 const express = require('express');
 const cors = require('cors');
@@ -54,6 +54,14 @@ app.use(errorHandler);
 
 // Start server
 const PORT = process.env.PORT || 3000;
+if (process.env.NODE_ENV === 'production') {
+  const clientBuildPath = path.join(__dirname, '../client/build');
+  app.use(express.static(clientBuildPath));
+
+  app.get('*', (req, res) => {
+    res.sendFile(path.join(clientBuildPath, 'index.html'));
+  });
+}
 app.listen(PORT, () => {
   console.log(`🚀 Server running on port ${PORT}`);
 });
