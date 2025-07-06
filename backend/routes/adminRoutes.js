@@ -8,7 +8,8 @@ const {
   updateOrderStatus,
   deleteUser,
   updateProduct,
-  getMetrics
+  getMetrics,
+  createProduct
 } = require('../controllers/adminController');
 const { deleteProduct } = require('../controllers/adminController');
 const { getOrderItemsByOrderId } = require('../controllers/adminController'); 
@@ -22,7 +23,7 @@ router.use(isAdmin);
 // Routes
 router.get('/users', getAllUsers);
 router.delete('/users/:id', deleteUser);
-
+router.post('/products', createProduct);
 router.get('/orders', getAllOrders);
 router.patch('/orders/:id', updateOrderStatus);
 

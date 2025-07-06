@@ -81,6 +81,28 @@ exports.getAllUsers = async (req, res) => {
     }
   };
 
+  exports.createProduct = async (req, res) => {
+    const { name, description, price, stock_quantity, image } = req.body;
+  
+    if (!name || price == null || stock_quantity == null) {
+      return res.status(400).json({ error: 'Name, price, and stock quantity are required' });
+    }
+  
+    try {
+      const result = await db.query(
+        `INSERT INTO products (name, description, price, stock_quantity, image)
+         VALUES ($1, $2, $3, $4, $5)
+         RETURNING *`,
+        [name, description, price, stock_quantity, image]
+      );
+  
+      res.status(201).json(result.rows[0]);
+    } catch (err) {
+      console.error('createProduct failed:', err);
+      res.status(500).json({ error: 'Failed to create product' });
+    }
+  };
+
   exports.updateProduct = async (req, res) => {
     const { id } = req.params;
     const { name, description, price, image_url } = req.body;
