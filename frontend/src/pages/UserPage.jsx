@@ -25,28 +25,11 @@ export default function UserPage() {
     fetchData();
   }, []);
 
-  const handleProfileChange = e =>
-    setProfile({ ...profile, [e.target.name]: e.target.value });
+  const handleProfileChange = e => setProfile({ ...profile, [e.target.name]: e.target.value });
+  const handlePwChange = e => setPasswordForm({ ...passwordForm, [e.target.name]: e.target.value });
 
-  const handlePwChange = (e) => {
-    setPasswordForm({ ...passwordForm, [e.target.name]: e.target.value });
-  };
-    
-
-  const updateProfile = async (e) => {
+  const updateProfile = async e => {
     e.preventDefault();
-    setMessage('');
-    const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
-  
-    if (!profile.username || !profile.email) {
-      setMessage('❌ Both name and email are required');
-      return;
-    }
-    if (!emailRegex.test(profile.email)) {
-      setMessage('❌ Please enter a valid email address');
-      return;
-    }
-  
     try {
       const res = await authFetch('/users/me', {
         method: 'PATCH',
@@ -54,35 +37,25 @@ export default function UserPage() {
       });
       const data = await res.json();
       if (!res.ok) throw new Error(data.error);
-      setMessage('✅ Profile updated successfully');
+      setMessage('✅ Profile updated!');
     } catch (err) {
       setMessage(`❌ ${err.message}`);
     }
   };
 
-  const changePassword = async (e) => {
+  const changePassword = async e => {
     e.preventDefault();
     setPwMessage('');
-  
+
     const { current, new: newPw, confirm } = passwordForm;
-  
-    if (!current || !newPw || !confirm) {
-      setPwMessage('❌ All fields are required');
-      return;
-    }
-    if (newPw !== confirm) {
-      setPwMessage('❌ New passwords do not match');
-      return;
-    }
-    if (newPw.length < 8 || !/[A-Z]/.test(newPw) || !/\d/.test(newPw)) {
-      setPwMessage('❌ Password must be 8+ chars, include 1 uppercase and 1 number');
-      return;
-    }
-  
+    if (!current || !newPw || !confirm) return setPwMessage('All fields are required');
+    if (newPw !== confirm) return setPwMessage('New passwords do not match');
+    if (newPw.length < 8 || !/[A-Z]/.test(newPw) || !/\d/.test(newPw)) return setPwMessage('Weak password');
+
     try {
       const res = await authFetch('/auth/change-password', {
         method: 'POST',
-        body: JSON.stringify({ current, new: newPw }),
+        body: JSON.stringify({ currentPassword: current, newPassword: newPw }),
       });
       const data = await res.json();
       if (!res.ok) throw new Error(data.error);
@@ -92,71 +65,58 @@ export default function UserPage() {
       setPwMessage(`❌ ${err.message}`);
     }
   };
+
   return (
-    <div className="max-w-4xl mx-auto p-6 mt-10 space-y-12">
+    <div className="max-w-5xl mx-auto p-4 sm:p-6 md:p-8 space-y-12">
       <h1 className="text-3xl font-bold text-center">My Profile</h1>
-      <div className="flex flex-col items-center mb-6">
-      <img
-        src={preview || profile.profile_image || '/default-avatar.png'}
-        alt="Profile"
-      />
-        <label className="text-blue-600 cursor-pointer text-sm hover:underline">
+
+      <div className="flex flex-col items-center">
+        <img
+          src={preview || profile.profile_image || '/default-avatar.png'}
+          alt="Profile"
+          className="w-24 h-24 rounded-full object-cover mb-2 border"
+        />
+        <label className="text-blue-600 text-sm cursor-pointer hover:underline">
           Change photo
           <input
             type="file"
             accept="image/*"
             hidden
-            onChange={async (e) => {
+            onChange={async e => {
               const file = e.target.files[0];
-              if (!file) return;
+              if (!file || !file.type.startsWith('image/')) return;
+              if (file.size > 2 * 1024 * 1024) return alert('Max 2MB');
               setPreview(URL.createObjectURL(file));
               const formData = new FormData();
-              if (!file.type.startsWith('image/')) {
-                alert('Please upload an image file');
-                return;
-              }
-              
-              if (file.size > 2 * 1024 * 1024) { // 2MB limit
-                alert('Image must be under 2MB');
-                return;
-              }
               formData.append('image', file);
-              const res = await authFetch('/users/me/image', {
-                method: 'POST',
-                body: formData,
-              });
-              
+              const res = await authFetch('/users/me/image', { method: 'POST', body: formData });
               if (res.ok) {
                 const updated = await res.json();
-                setProfile(prev => ({ ...prev, profile_image: updated.profile_image }));
+                setProfile(p => ({ ...p, profile_image: updated.profile_image }));
               }
             }}
           />
         </label>
       </div>
-      {/* Profile Update */}
+
       <section>
         <h2 className="text-2xl font-semibold mb-4">Account Details</h2>
         <form onSubmit={updateProfile} className="space-y-4">
-          <div>
-            <label className="block text-sm font-medium text-gray-700">Name</label>
-            <input
-              name="username"
-              value={profile.username}
-              onChange={handleProfileChange}
-              className="w-full border p-2 rounded"
-            />
-          </div>
-          <div>
-            <label className="block text-sm font-medium text-gray-700">Email</label>
-            <input
-              name="email"
-              type="email"
-              value={profile.email}
-              onChange={handleProfileChange}
-              className="w-full border p-2 rounded"
-            />
-          </div>
+          <input
+            name="username"
+            value={profile.username}
+            onChange={handleProfileChange}
+            className="w-full border p-2 rounded"
+            placeholder="Name"
+          />
+          <input
+            name="email"
+            type="email"
+            value={profile.email}
+            onChange={handleProfileChange}
+            className="w-full border p-2 rounded"
+            placeholder="Email"
+          />
           <button type="submit" className="bg-blue-600 text-white px-4 py-2 rounded hover:bg-blue-700">
             Update Profile
           </button>
@@ -164,38 +124,33 @@ export default function UserPage() {
         </form>
       </section>
 
-      {/* Password Change */}
       <section>
         <h2 className="text-2xl font-semibold mb-4">Change Password</h2>
         <form onSubmit={changePassword} className="space-y-4">
-          <div>
-            <label className="block text-sm font-medium text-gray-700">Current Password</label>
-            <input
-              type="password"
-              name="current"
-              value={passwordForm.current}
-              onChange={handlePwChange}
-              className="w-full border p-2 rounded"
-            />
-          </div>
-          <div>
-            <label className="block text-sm font-medium text-gray-700">New Password</label>
-            <input
-              type="password"
-              name="new"
-              value={passwordForm.new}
-              onChange={handlePwChange}
-              className="w-full border p-2 rounded"
-            />
-            <label className="block text-sm font-medium text-gray-700">Confirm New Password</label>
-              <input
-                type="password"
-                name="confirm"
-                value={passwordForm.confirm}
-                onChange={handlePwChange}
-                className="w-full border p-2 rounded"
-            />
-          </div>
+          <input
+            type="password"
+            name="current"
+            value={passwordForm.current}
+            onChange={handlePwChange}
+            className="w-full border p-2 rounded"
+            placeholder="Current Password"
+          />
+          <input
+            type="password"
+            name="new"
+            value={passwordForm.new}
+            onChange={handlePwChange}
+            className="w-full border p-2 rounded"
+            placeholder="New Password"
+          />
+          <input
+            type="password"
+            name="confirm"
+            value={passwordForm.confirm}
+            onChange={handlePwChange}
+            className="w-full border p-2 rounded"
+            placeholder="Confirm Password"
+          />
           <button type="submit" className="bg-indigo-600 text-white px-4 py-2 rounded hover:bg-indigo-700">
             Change Password
           </button>
@@ -203,7 +158,6 @@ export default function UserPage() {
         </form>
       </section>
 
-      {/* Order History */}
       <section>
         <h2 className="text-2xl font-semibold mb-4">Order History</h2>
         <ul className="space-y-3">

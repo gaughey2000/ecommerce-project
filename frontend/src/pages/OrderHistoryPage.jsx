@@ -1,5 +1,4 @@
 import { useEffect, useState } from 'react';
-import { Link } from 'react-router-dom';
 import { authFetch } from '../services/api';
 
 export default function OrderHistoryPage() {
@@ -7,36 +6,34 @@ export default function OrderHistoryPage() {
   const [error, setError] = useState('');
 
   useEffect(() => {
-    async function fetchOrders() {
-      try {
-        const res = await authFetch('/orders');
+    authFetch('/orders')
+      .then(res => {
         if (!res.ok) throw new Error('Failed to fetch orders');
-        const data = await res.json();
-        setOrders(data);
-      } catch (err) {
-        setError(err.message);
-      }
-    }
-    fetchOrders();
+        return res.json();
+      })
+      .then(setOrders)
+      .catch(err => setError(err.message));
   }, []);
 
-  if (error) return <p className="text-red-600">{error}</p>;
-  if (orders.length === 0) return <p>No past orders found.</p>;
-
   return (
-    <div className="max-w-xl mx-auto mt-10 p-4 border rounded">
-      <h1 className="text-2xl font-bold mb-4">Your Order History</h1>
-      <ul>
-        {orders.map(order => (
-          <li key={order.order_id} className="mb-3">
-            <Link
-              to={`/order-confirmation/${order.order_id}`}
-              className="text-blue-600 hover:underline"
-            >
-              Order #{order.order_id} - {order.status} - £{order.total_amount.toFixed(2)}
-            </Link>
-          </li>
-        ))}
+    <div className="max-w-4xl mx-auto px-4 sm:px-6 py-8">
+      <h1 className="text-2xl sm:text-3xl font-bold text-center mb-6">Order History</h1>
+
+      {error && <p className="text-red-500 text-center mb-4">{error}</p>}
+
+      <ul className="space-y-4">
+        {orders.length > 0 ? (
+          orders.map(order => (
+            <li key={order.order_id} className="bg-white p-4 rounded shadow">
+              <p><strong>ID:</strong> {order.order_id}</p>
+              <p><strong>Status:</strong> <span className={order.status === 'pending' ? 'text-yellow-600 font-semibold' : 'text-green-600 font-semibold'}>{order.status}</span></p>
+              <p><strong>Total:</strong> £{Number(order.total_amount).toFixed(2)}</p>
+              <p><strong>Date:</strong> {new Date(order.created_at).toLocaleString()}</p>
+            </li>
+          ))
+        ) : (
+          <p className="text-center text-gray-500">No past orders found.</p>
+        )}
       </ul>
     </div>
   );

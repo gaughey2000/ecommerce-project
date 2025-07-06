@@ -1,100 +1,100 @@
-import { useState, useEffect, useContext } from 'react';
+import { useState } from 'react';
 import { authFetch } from '../services/api';
-import { AuthContext } from '../context/AuthContext';
-import Layout from '../components/Layout';
+import { useNavigate } from 'react-router-dom';
 
-export default function ProductListPage() {
-  const { user } = useContext(AuthContext);
-  const [products, setProducts] = useState([]);
-  const [search, setSearch] = useState('');
+export default function AddProductPage() {
+  const navigate = useNavigate();
+  const [form, setForm] = useState({ name: '', description: '', price: '', stock_quantity: '' });
+  const [image, setImage] = useState(null);
   const [error, setError] = useState('');
-  const [success, setSuccess] = useState('');
 
-  useEffect(() => {
-    authFetch('/products')
-      .then(res => {
-        if (!res.ok) throw new Error('Failed to fetch products');
-        return res.json();
-      })
-      .then(data => setProducts(data))
-      .catch(err => setError(err.message));
-  }, []);
+  const handleChange = e => {
+    setForm({ ...form, [e.target.name]: e.target.value });
+  };
 
-  const handleAddToCart = async (productId) => {
+  const handleSubmit = async e => {
+    e.preventDefault();
     setError('');
-    setSuccess('');
-
-    const product = products.find(p => p.product_id === productId);
-    if (product.stock_quantity < 0) {
-      setError('Cannot add a product with negative stock');
-      return;
-    }
 
     try {
-      const res = await authFetch('/cart', {
+      let imagePath = '';
+      if (image) {
+        const formData = new FormData();
+        formData.append('image', image);
+        const resUpload = await authFetch('/uploads/product', {
+          method: 'POST',
+          body: formData,
+        });
+        const uploadData = await resUpload.json();
+        if (!resUpload.ok) throw new Error(uploadData.error);
+        imagePath = uploadData.image;
+      }
+
+      const res = await authFetch('/admin/products', {
         method: 'POST',
-        body: JSON.stringify({ productId, quantity: 1 }),
+        body: JSON.stringify({ ...form, image_url: imagePath }),
       });
       const data = await res.json();
-      if (!res.ok) throw new Error(data.error || 'Add to cart failed');
-      setSuccess('Added to cart!');
-      setTimeout(() => setSuccess(''), 3000);
+      if (!res.ok) throw new Error(data.error);
+
+      navigate('/admin');
     } catch (err) {
       setError(err.message);
     }
   };
 
-  const filtered = products.filter(product =>
-    product.name.toLowerCase().includes(search.toLowerCase())
-  );
-
   return (
-    <Layout>
-      <div className="mt-6">
-        <h1 className="text-3xl font-bold mb-6 text-center">Browse Products</h1>
+    <div className="max-w-2xl mx-auto px-4 sm:px-6 py-10">
+      <h1 className="text-2xl sm:text-3xl font-bold mb-6 text-center">Add New Product</h1>
 
+      {error && <p className="text-center text-red-500 mb-4">{error}</p>}
+
+      <form onSubmit={handleSubmit} className="space-y-4">
         <input
-          type="text"
-          placeholder="Search products..."
-          value={search}
-          onChange={e => setSearch(e.target.value)}
-          className="w-full p-3 mb-6 border border-gray-300 rounded shadow-sm"
+          name="name"
+          value={form.name}
+          onChange={handleChange}
+          placeholder="Product name"
+          className="w-full border p-2 rounded"
+          required
         />
-
-        {error && <p className="text-red-500 mb-4">{error}</p>}
-        {success && <p className="text-green-600 mb-4">{success}</p>}
-
-        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6">
-          {filtered.length > 0 ? (
-            filtered.map(product => (
-              <div key={product.product_id} className="bg-white rounded-lg shadow p-4 flex flex-col justify-between">
-                <img
-                  src={
-                    product.image
-                      ? `http://localhost:3000${product.image}`
-                      : '/placeholder.jpg'
-                  }
-                  alt={product.name}
-                  className="w-full h-48 object-cover rounded mb-3"
-                />
-                <h2 className="text-xl font-semibold mb-1">{product.name}</h2>
-                <p className="text-gray-600 text-sm mb-2">{product.description}</p>
-                <p className="text-lg text-green-600 font-bold mb-2">£{Number(product.price).toFixed(2)}</p>
-                {user && (
-                  <button
-                    onClick={() => handleAddToCart(product.product_id)}
-                    className="bg-blue-600 text-white py-2 rounded hover:bg-blue-700 transition"
-                  >
-                    Add to Cart
-                  </button>
-                )}
-              </div>
-            ))
-          ) : (
-            <p className="text-center text-gray-600">No products found.</p>
-          )}
-        </div>
-      </div>
-    </Layout>
+        <textarea
+          name="description"
+          value={form.description}
+          onChange={handleChange}
+          placeholder="Description"
+          className="w-full border p-2 rounded"
+          required
+        />
+        <input
+          type="number"
+          step="0.01"
+          name="price"
+          value={form.price}
+          onChange={handleChange}
+          placeholder="Price (e.g., 19.99)"
+          className="w-full border p-2 rounded"
+          required
+        />
+        <input
+          type="number"
+          name="stock_quantity"
+          value={form.stock_quantity}
+          onChange={handleChange}
+          placeholder="Stock quantity"
+          className="w-full border p-2 rounded"
+          required
+        />
+        <input
+          type="file"
+          accept="image/*"
+          onChange={e => setImage(e.target.files[0])}
+          className="w-full"
+        />
+        <button type="submit" className="w-full bg-blue-600 hover:bg-blue-700 text-white py-2 rounded">
+          Create Product
+        </button>
+      </form>
+    </div>
   );
 }

@@ -1,90 +1,50 @@
 import { useEffect, useState } from 'react';
-import { useParams, useNavigate } from 'react-router-dom';
 import { authFetch } from '../services/api';
+import { useNavigate, useParams } from 'react-router-dom';
 
 export default function EditProductPage() {
   const { id } = useParams();
   const navigate = useNavigate();
-  const [product, setProduct] = useState({
-    name: '',
-    description: '',
-    price: '',
-    stock_quantity: '',
-    image: ''
-  });
-  const [imageFile, setImageFile] = useState(null);
+  const [form, setForm] = useState({ name: '', description: '', price: '', stock_quantity: '', image_url: '' });
+  const [image, setImage] = useState(null);
   const [error, setError] = useState('');
 
   useEffect(() => {
-    async function fetchProduct() {
-      try {
-        const res = await authFetch(`/products/${id}`);
+    authFetch(`/products/${id}`)
+      .then(res => {
         if (!res.ok) throw new Error('Failed to fetch product');
-        const data = await res.json();
-        setProduct({
-          name: data.name,
-          description: data.description,
-          price: data.price,
-          stock_quantity: data.stock_quantity,
-          image: data.image || ''
-        });
-      } catch (err) {
-        setError(err.message);
-      }
-    }
-    fetchProduct();
+        return res.json();
+      })
+      .then(setForm)
+      .catch(err => setError(err.message));
   }, [id]);
 
-  const handleChange = e => {
-    const { name, value } = e.target;
-    setProduct(prev => ({ ...prev, [name]: value }));
-  };
-
-  const handleImageChange = e => {
-    if (e.target.files.length > 0) {
-      setImageFile(e.target.files[0]);
-    }
-  };
+  const handleChange = e => setForm({ ...form, [e.target.name]: e.target.value });
 
   const handleSubmit = async e => {
     e.preventDefault();
     setError('');
 
-    if (product.price <= 0) {
-      setError('Price must be greater than 0');
-      return;
-    }
-
-    if (product.stock_quantity < 0) {
-      setError('Stock quantity cannot be negative');
-      return;
-    }
-
     try {
-      let imagePath = product.image;
-
-      if (imageFile) {
+      let imagePath = form.image_url;
+      if (image) {
         const formData = new FormData();
-        formData.append('image', imageFile);
-
-        const uploadRes = await authFetch('/uploads', {
+        formData.append('image', image);
+        const resUpload = await authFetch('/uploads/product', {
           method: 'POST',
           body: formData,
         });
-
-        const uploadData = await uploadRes.json();
-        if (!uploadRes.ok) throw new Error(uploadData.error || 'Image upload failed');
-        imagePath = uploadData.path;
+        const uploadData = await resUpload.json();
+        if (!resUpload.ok) throw new Error(uploadData.error);
+        imagePath = uploadData.image;
       }
 
-      const res = await authFetch(`/products/${id}`, {
+      const res = await authFetch(`/admin/products/${id}`, {
         method: 'PUT',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ ...product, image: imagePath }),
+        body: JSON.stringify({ ...form, image_url: imagePath }),
       });
-
       const data = await res.json();
-      if (!res.ok) throw new Error(data.error || 'Update failed');
+      if (!res.ok) throw new Error(data.error);
 
       navigate('/admin');
     } catch (err) {
@@ -93,54 +53,55 @@ export default function EditProductPage() {
   };
 
   return (
-    <div className="max-w-xl mx-auto p-4">
-      <h1 className="text-2xl font-bold mb-4">Edit Product</h1>
-      {error && <p className="text-red-600">{error}</p>}
+    <div className="max-w-2xl mx-auto px-4 sm:px-6 py-10">
+      <h1 className="text-2xl sm:text-3xl font-bold mb-6 text-center">Edit Product</h1>
+
+      {error && <p className="text-center text-red-500 mb-4">{error}</p>}
+
       <form onSubmit={handleSubmit} className="space-y-4">
         <input
           name="name"
-          value={product.name}
+          value={form.name}
           onChange={handleChange}
-          placeholder="Name"
-          className="w-full p-2 border rounded"
+          placeholder="Product name"
+          className="w-full border p-2 rounded"
+          required
         />
         <textarea
           name="description"
-          value={product.description}
+          value={form.description}
           onChange={handleChange}
           placeholder="Description"
-          className="w-full p-2 border rounded"
+          className="w-full border p-2 rounded"
+          required
         />
         <input
-          name="price"
           type="number"
           step="0.01"
-          value={product.price}
+          name="price"
+          value={form.price}
           onChange={handleChange}
           placeholder="Price"
-          className="w-full p-2 border rounded"
+          className="w-full border p-2 rounded"
+          required
         />
         <input
-          name="stock_quantity"
           type="number"
-          value={product.stock_quantity}
+          name="stock_quantity"
+          value={form.stock_quantity}
           onChange={handleChange}
-          placeholder="Stock Quantity"
-          className="w-full p-2 border rounded"
+          placeholder="Stock quantity"
+          className="w-full border p-2 rounded"
+          required
         />
-        <div>
-          <label className="block mb-1">Product Image</label>
-          <input type="file" accept="image/*" onChange={handleImageChange} />
-          {product.image && (
-            <img
-              src={`http://localhost:3000${product.image}`}
-              alt="Product Preview"
-              className="mt-2 h-32 object-cover rounded"
-            />
-          )}
-        </div>
-        <button type="submit" className="bg-blue-600 text-white px-4 py-2 rounded hover:bg-blue-700">
-          Save Changes
+        <input
+          type="file"
+          accept="image/*"
+          onChange={e => setImage(e.target.files[0])}
+          className="w-full"
+        />
+        <button type="submit" className="w-full bg-green-600 hover:bg-green-700 text-white py-2 rounded">
+          Update Product
         </button>
       </form>
     </div>

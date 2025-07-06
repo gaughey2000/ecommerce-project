@@ -1,7 +1,7 @@
 import { useState, useEffect, useContext } from 'react';
 import { authFetch } from '../services/api';
 import { AuthContext } from '../context/AuthContext';
-import Layout from '../components/Layout';
+
 
 export default function ProductListPage() {
   const { user } = useContext(AuthContext);
@@ -57,7 +57,6 @@ export default function ProductListPage() {
   );
 
   return (
-    <Layout>
       <div className="mt-6 px-4 sm:px-6 lg:px-8">
         <h1 className="text-2xl sm:text-3xl font-bold mb-6 text-center">Browse Products</h1>
 
@@ -111,6 +110,5 @@ export default function ProductListPage() {
           )}
         </div>
       </div>
-    </Layout>
   );
 }
