@@ -1,13 +1,10 @@
 const pool = require('../db');
 
-const addToCart = async (req, res) => {
+const addToCart = async (req, res, next) => {
   const { productId, quantity } = req.body;
   const userId = req.user.userId;
-  console.log('Cart request:', { userId, productId, quantity });
-  console.log('Incoming add-to-cart:', req.body);
 
   try {
-    // Verify product exists
     const product = await pool.query(
       'SELECT stock_quantity FROM products WHERE product_id = $1',
       [productId]
@@ -15,25 +12,25 @@ const addToCart = async (req, res) => {
     if (product.rows.length === 0) {
       return res.status(404).json({ error: 'Product not found' });
     }
+
     const stock = product.rows[0].stock_quantity;
 
-    // Check existing cart quantity
     const existingItem = await pool.query(
       'SELECT quantity FROM cart_items WHERE user_id = $1 AND product_id = $2',
       [userId, productId]
     );
+
     const currentQuantity = existingItem.rows.length
       ? existingItem.rows[0].quantity
       : 0;
-    const newTotalQuantity = currentQuantity + quantity;
 
+    const newTotalQuantity = currentQuantity + quantity;
     if (newTotalQuantity > stock) {
-      return res
-        .status(400)
-        .json({ error: `Insufficient stock. Only ${stock} available.` });
+      return res.status(400).json({
+        error: `Insufficient stock. Only ${stock} available.`,
+      });
     }
 
-    // Update or insert, but send 201 on success
     if (existingItem.rows.length) {
       const result = await pool.query(
         `UPDATE cart_items
@@ -42,7 +39,6 @@ const addToCart = async (req, res) => {
          RETURNING *`,
         [quantity, userId, productId]
       );
-      console.log('Cart item updated:', result.rows[0]);
       return res.status(201).json(result.rows[0]);
     } else {
       const result = await pool.query(
@@ -51,25 +47,25 @@ const addToCart = async (req, res) => {
          RETURNING *`,
         [userId, productId, quantity]
       );
-      console.log('Cart item inserted:', result.rows[0]);
       return res.status(201).json(result.rows[0]);
     }
-
   } catch (err) {
-    console.error('Cart error:', err);
-    return res.status(500).json({ error: err.message });
+    console.error('Add to cart failed:', err);
+    err.status = 500;
+    next(err);
   }
 };
 
-const updateCartQuantity = async (req, res) => {
+const updateCartQuantity = async (req, res, next) => {
   const { cartItemId } = req.params;
   const { quantity } = req.body;
   const userId = req.user.userId;
-  console.log('Update cart request:', { cartItemId, quantity });
+
   try {
     if (quantity < 1) {
       return res.status(400).json({ error: 'Quantity must be at least 1' });
     }
+
     const item = await pool.query(
       'SELECT product_id FROM cart_items WHERE cart_item_id = $1 AND user_id = $2',
       [cartItemId, userId]
@@ -77,73 +73,75 @@ const updateCartQuantity = async (req, res) => {
     if (item.rows.length === 0) {
       return res.status(404).json({ error: 'Cart item not found' });
     }
-    const productId = item.rows[0].product_id;
 
     const product = await pool.query(
       'SELECT stock_quantity FROM products WHERE product_id = $1',
-      [productId]
+      [item.rows[0].product_id]
     );
     if (product.rows.length === 0) {
       return res.status(404).json({ error: 'Product not found' });
     }
-    const stock = product.rows[0].stock_quantity;
 
-    if (quantity > stock) {
-      return res.status(400).json({ error: `Insufficient stock. Only ${stock} available.` });
+    if (quantity > product.rows[0].stock_quantity) {
+      return res.status(400).json({
+        error: `Insufficient stock. Only ${product.rows[0].stock_quantity} available.`,
+      });
     }
 
     const result = await pool.query(
       'UPDATE cart_items SET quantity = $1 WHERE cart_item_id = $2 AND user_id = $3 RETURNING *',
       [quantity, cartItemId, userId]
     );
-    console.log('Cart item updated:', result.rows[0]);
+
     res.json(result.rows[0]);
   } catch (err) {
-    console.error('Update cart error:', err);
-    res.status(500).json({ error: err.message });
+    console.error('Update cart quantity failed:', err);
+    err.status = 500;
+    next(err);
   }
 };
 
-const removeFromCart = async (req, res) => {
+const removeFromCart = async (req, res, next) => {
   const { cartItemId } = req.params;
   const userId = req.user.userId;
-  console.log('Remove cart item request:', { cartItemId });
+
   try {
     const result = await pool.query(
       'DELETE FROM cart_items WHERE cart_item_id = $1 AND user_id = $2 RETURNING *',
       [cartItemId, userId]
     );
+
     if (result.rowCount === 0) {
       return res.status(404).json({ error: 'Cart item not found' });
     }
-    console.log('Cart item deleted:', result.rows[0]);
+
     res.status(204).send();
   } catch (err) {
-    console.error('Remove cart error:', err);
-    res.status(500).json({ error: err.message });
+    console.error('Remove cart item failed:', err);
+    err.status = 500;
+    next(err);
   }
 };
 
-const clearCart = async (req, res) => {
+const clearCart = async (req, res, next) => {
   const { userId } = req.params;
   if (parseInt(userId) !== req.user.userId) {
     return res.status(403).json({ error: 'Unauthorized' });
   }
-  console.log('Clear cart request:', { userId });
+
   try {
-    const result = await pool.query(
-      'DELETE FROM cart_items WHERE user_id = $1 RETURNING *',
-      [userId]
-    );
-    console.log('Cart cleared:', result.rows);
+    await pool.query('DELETE FROM cart_items WHERE user_id = $1', [userId]);
     res.status(204).send();
   } catch (err) {
-    console.error('Clear cart error:', err);
-    res.status(500).json({ error: err.message });
+    console.error('Clear cart failed:', err);
+    err.status = 500;
+    next(err);
   }
 };
-const getCart = async (req, res) => {
+
+const getCart = async (req, res, next) => {
   const userId = req.user.userId;
+
   try {
     const result = await pool.query(
       `SELECT ci.cart_item_id, p.product_id, p.name, p.price, ci.quantity
@@ -152,12 +150,19 @@ const getCart = async (req, res) => {
        WHERE ci.user_id = $1`,
       [userId]
     );
+
     res.json(result.rows);
-  } catch (error) {
-    console.error('Get cart error:', error);
-    res.status(500).json({ error: 'Failed to fetch cart' });
+  } catch (err) {
+    console.error('Get cart failed:', err);
+    err.status = 500;
+    next(err);
   }
 };
 
-
-module.exports = { addToCart, updateCartQuantity, removeFromCart, clearCart, getCart };
+module.exports = {
+  addToCart,
+  updateCartQuantity,
+  removeFromCart,
+  clearCart,
+  getCart,
+};

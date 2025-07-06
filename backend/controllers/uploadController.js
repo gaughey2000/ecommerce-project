@@ -2,9 +2,34 @@ const multer = require('multer');
 const path = require('path');
 const pool = require('../db');
 
+// Set allowed extensions and max file size (2MB)
+const allowedTypes = ['image/jpeg', 'image/png', 'image/webp', 'image/jpg'];
+const maxSize = 2 * 1024 * 1024; // 2MB
+
+const storage = multer.diskStorage({
+  destination: './uploads/',
+  filename: (req, file, cb) => {
+    cb(null, Date.now() + path.extname(file.originalname).toLowerCase());
+  }
+});
+
+const fileFilter = (req, file, cb) => {
+  if (!allowedTypes.includes(file.mimetype)) {
+    cb(new Error('Only image files are allowed'));
+  } else {
+    cb(null, true);
+  }
+};
+
+const upload = multer({
+  storage,
+  limits: { fileSize: maxSize },
+  fileFilter
+});
+
+// Controller: Upload profile image
 const uploadProfileImage = async (req, res) => {
   if (!req.file) {
-    console.error('No file uploaded');
     return res.status(400).json({ error: 'No image file received' });
   }
 
@@ -16,31 +41,30 @@ const uploadProfileImage = async (req, res) => {
     );
     res.json({ profile_image: imagePath });
   } catch (err) {
-    console.error('Profile image upload failed:', err);
-    res.status(500).json({ error: 'Failed to upload profile image' });
+    console.error('Profile image DB update failed:', err.stack);
+    res.status(500).json({ error: 'Could not save profile image' });
   }
 };
 
-
-const storage = multer.diskStorage({
-  destination: './uploads/',
-  filename: (req, file, cb) => {
-    cb(null, Date.now() + path.extname(file.originalname));
-  }
-});
-const upload = multer({ storage });
-
+// Controller: Upload product image
 const uploadProductImage = [
   upload.single('image'),
   async (req, res) => {
+    if (!req.file) {
+      return res.status(400).json({ error: 'No image file received' });
+    }
+
     try {
       const imagePath = `/uploads/${req.file.filename}`;
       res.json({ image: imagePath });
     } catch (err) {
-      console.error('Image upload error:', err);
-      res.status(500).json({ error: err.message });
+      console.error('Product image processing failed:', err.stack);
+      res.status(500).json({ error: 'Image upload failed' });
     }
   }
 ];
 
-module.exports = { uploadProductImage, uploadProfileImage };
+module.exports = {
+  uploadProductImage,
+  uploadProfileImage
+};

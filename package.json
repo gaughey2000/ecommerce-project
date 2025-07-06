@@ -2,11 +2,11 @@
   "name": "e-commerce",
   "version": "1.0.0",
   "main": "backend/index.js",
- "scripts": {
-  "dev": "nodemon index.js",
-  "start": "NODE_ENV=production node index.js",
-  "test": "echo \"Error: no test specified\" && exit 1",
-  "postinstall": "cd client && npm install && npm run build"
+  "scripts": {
+    "dev": "nodemon index.js",
+    "start": "NODE_ENV=production node index.js",
+    "test": "echo \"Error: no test specified\" && exit 1",
+    "postinstall": "cd client && npm install && npm run build"
   },
   "author": "",
   "license": "ISC",
@@ -16,6 +16,7 @@
     "cors": "^2.8.5",
     "dotenv": "^16.5.0",
     "express": "^5.1.0",
+    "express-rate-limit": "^7.5.1",
     "express-validator": "^7.2.1",
     "jsonwebtoken": "^9.0.2",
     "jwt-decode": "^4.0.0",
