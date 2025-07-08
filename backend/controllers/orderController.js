@@ -1,4 +1,5 @@
 const pool = require('../db');
+const { validationResult, body, param } = require('express-validator');
 
 // Create a new order from user's cart
 const createOrder = async (req, res) => {
@@ -46,7 +47,7 @@ const createOrder = async (req, res) => {
 
     res.status(201).json({ message: 'Order placed successfully', orderId });
   } catch (err) {
-    console.error('Create order error:', err.stack);
+    console.error('Create order error:', err);
     res.status(500).json({ error: 'Order creation failed' });
   }
 };
@@ -61,7 +62,7 @@ const getOrderHistory = async (req, res) => {
     );
     res.json(result.rows);
   } catch (err) {
-    console.error('Fetch order history error:', err.stack);
+    console.error('Fetch order history error:', err);
     res.status(500).json({ error: 'Could not retrieve orders' });
   }
 };
@@ -69,6 +70,9 @@ const getOrderHistory = async (req, res) => {
 // Get one order by ID
 const getOrderById = async (req, res) => {
   const { orderId } = req.params;
+  if (!/^[0-9]+$/.test(orderId)) {
+    return res.status(400).json({ error: 'Invalid order ID' });
+  }
   try {
     const result = await pool.query(
       'SELECT * FROM orders WHERE order_id = $1',
@@ -79,7 +83,7 @@ const getOrderById = async (req, res) => {
     }
     res.json(result.rows[0]);
   } catch (err) {
-    console.error('Fetch single order error:', err.stack);
+    console.error('Fetch single order error:', err);
     res.status(500).json({ error: 'Could not retrieve order' });
   }
 };
@@ -87,6 +91,9 @@ const getOrderById = async (req, res) => {
 // Get items for a specific order
 const getOrderItemsByOrderId = async (req, res) => {
   const { orderId } = req.params;
+  if (!/^[0-9]+$/.test(orderId)) {
+    return res.status(400).json({ error: 'Invalid order ID' });
+  }
   try {
     const result = await pool.query(
       `SELECT * FROM order_items WHERE order_id = $1`,
@@ -94,7 +101,7 @@ const getOrderItemsByOrderId = async (req, res) => {
     );
     res.json(result.rows);
   } catch (err) {
-    console.error('Fetch order items error:', err.stack);
+    console.error('Fetch order items error:', err);
     res.status(500).json({ error: 'Could not retrieve order items' });
   }
 };

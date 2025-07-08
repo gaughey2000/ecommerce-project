@@ -1,145 +1,121 @@
 const pool = require('../db');
 
-const addToCart = async (req, res, next) => {
-  const { productId, quantity } = req.body;
+// Helper to validate and sanitise input quantity
+function sanitiseQuantity(qty) {
+  const parsed = parseInt(qty, 10);
+  if (isNaN(parsed) || parsed < 1) return null;
+  return parsed;
+}
+
+// Add item to cart
+exports.addToCart = async (req, res, next) => {
   const userId = req.user.userId;
+  const { productId, quantity } = req.body;
+
+  const qty = sanitiseQuantity(quantity);
+  if (!productId || !qty) {
+    return res.status(400).json({ error: 'Invalid product or quantity' });
+  }
 
   try {
-    const product = await pool.query(
+    const stockCheck = await pool.query(
       'SELECT stock_quantity FROM products WHERE product_id = $1',
       [productId]
     );
-    if (product.rows.length === 0) {
-      return res.status(404).json({ error: 'Product not found' });
-    }
+    if (stockCheck.rows.length === 0) return res.status(404).json({ error: 'Product not found' });
 
-    const stock = product.rows[0].stock_quantity;
+    const stock = stockCheck.rows[0].stock_quantity;
 
-    const existingItem = await pool.query(
+    const existing = await pool.query(
       'SELECT quantity FROM cart_items WHERE user_id = $1 AND product_id = $2',
       [userId, productId]
     );
 
-    const currentQuantity = existingItem.rows.length
-      ? existingItem.rows[0].quantity
-      : 0;
+    const currentQty = existing.rows[0]?.quantity || 0;
+    const totalQty = currentQty + qty;
 
-    const newTotalQuantity = currentQuantity + quantity;
-    if (newTotalQuantity > stock) {
-      return res.status(400).json({
-        error: `Insufficient stock. Only ${stock} available.`,
-      });
+    if (totalQty > stock) {
+      return res.status(400).json({ error: `Only ${stock} left in stock` });
     }
 
-    if (existingItem.rows.length) {
-      const result = await pool.query(
-        `UPDATE cart_items
-         SET quantity = quantity + $1
-         WHERE user_id = $2 AND product_id = $3
-         RETURNING *`,
-        [quantity, userId, productId]
+    if (existing.rows.length) {
+      const updated = await pool.query(
+        `UPDATE cart_items SET quantity = $1 WHERE user_id = $2 AND product_id = $3 RETURNING *`,
+        [totalQty, userId, productId]
       );
-      return res.status(201).json(result.rows[0]);
+      return res.status(201).json(updated.rows[0]);
     } else {
-      const result = await pool.query(
-        `INSERT INTO cart_items (user_id, product_id, quantity)
-         VALUES ($1, $2, $3)
-         RETURNING *`,
-        [userId, productId, quantity]
+      const inserted = await pool.query(
+        `INSERT INTO cart_items (user_id, product_id, quantity) VALUES ($1, $2, $3) RETURNING *`,
+        [userId, productId, qty]
       );
-      return res.status(201).json(result.rows[0]);
+      return res.status(201).json(inserted.rows[0]);
     }
   } catch (err) {
-    console.error('Add to cart failed:', err);
-    err.status = 500;
+    console.error('addToCart error:', err);
     next(err);
   }
 };
 
-const updateCartQuantity = async (req, res, next) => {
+// Update item quantity
+exports.updateCartQuantity = async (req, res, next) => {
+  const userId = req.user.userId;
   const { cartItemId } = req.params;
   const { quantity } = req.body;
-  const userId = req.user.userId;
+
+  const qty = sanitiseQuantity(quantity);
+  if (!qty) return res.status(400).json({ error: 'Invalid quantity' });
 
   try {
-    if (quantity < 1) {
-      return res.status(400).json({ error: 'Quantity must be at least 1' });
-    }
-
-    const item = await pool.query(
-      'SELECT product_id FROM cart_items WHERE cart_item_id = $1 AND user_id = $2',
-      [cartItemId, userId]
-    );
-    if (item.rows.length === 0) {
-      return res.status(404).json({ error: 'Cart item not found' });
-    }
-
-    const product = await pool.query(
-      'SELECT stock_quantity FROM products WHERE product_id = $1',
-      [item.rows[0].product_id]
-    );
-    if (product.rows.length === 0) {
-      return res.status(404).json({ error: 'Product not found' });
-    }
-
-    if (quantity > product.rows[0].stock_quantity) {
-      return res.status(400).json({
-        error: `Insufficient stock. Only ${product.rows[0].stock_quantity} available.`,
-      });
-    }
-
     const result = await pool.query(
-      'UPDATE cart_items SET quantity = $1 WHERE cart_item_id = $2 AND user_id = $3 RETURNING *',
-      [quantity, cartItemId, userId]
+      `UPDATE cart_items SET quantity = $1 WHERE cart_item_id = $2 AND user_id = $3 RETURNING *`,
+      [qty, cartItemId, userId]
     );
-
+    if (result.rowCount === 0) return res.status(404).json({ error: 'Cart item not found' });
     res.json(result.rows[0]);
   } catch (err) {
-    console.error('Update cart quantity failed:', err);
-    err.status = 500;
+    console.error('updateCartQuantity error:', err);
     next(err);
   }
 };
 
-const removeFromCart = async (req, res, next) => {
-  const { cartItemId } = req.params;
+// Remove item from cart
+exports.removeFromCart = async (req, res, next) => {
   const userId = req.user.userId;
+  const { cartItemId } = req.params;
 
   try {
     const result = await pool.query(
-      'DELETE FROM cart_items WHERE cart_item_id = $1 AND user_id = $2 RETURNING *',
+      `DELETE FROM cart_items WHERE cart_item_id = $1 AND user_id = $2 RETURNING *`,
       [cartItemId, userId]
     );
-
-    if (result.rowCount === 0) {
-      return res.status(404).json({ error: 'Cart item not found' });
-    }
-
+    if (result.rowCount === 0) return res.status(404).json({ error: 'Item not found' });
     res.status(204).send();
   } catch (err) {
-    console.error('Remove cart item failed:', err);
-    err.status = 500;
+    console.error('removeFromCart error:', err);
     next(err);
   }
 };
 
-const clearCart = async (req, res, next) => {
+// Clear entire cart
+exports.clearCart = async (req, res, next) => {
   const { userId } = req.params;
+
   if (parseInt(userId) !== req.user.userId) {
-    return res.status(403).json({ error: 'Unauthorized' });
+    return res.status(403).json({ error: 'You can only clear your own cart' });
   }
 
   try {
     await pool.query('DELETE FROM cart_items WHERE user_id = $1', [userId]);
     res.status(204).send();
   } catch (err) {
-    console.error('Clear cart failed:', err);
-    err.status = 500;
+    console.error('clearCart error:', err);
     next(err);
   }
 };
 
-const getCart = async (req, res, next) => {
+// Fetch current cart contents
+exports.getCart = async (req, res, next) => {
   const userId = req.user.userId;
 
   try {
@@ -150,19 +126,9 @@ const getCart = async (req, res, next) => {
        WHERE ci.user_id = $1`,
       [userId]
     );
-
     res.json(result.rows);
   } catch (err) {
-    console.error('Get cart failed:', err);
-    err.status = 500;
+    console.error('getCart error:', err);
     next(err);
   }
-};
-
-module.exports = {
-  addToCart,
-  updateCartQuantity,
-  removeFromCart,
-  clearCart,
-  getCart,
 };

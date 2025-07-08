@@ -4,14 +4,13 @@ import { Link } from 'react-router-dom';
 
 export default function HomePage() {
   const { user } = useContext(AuthContext);
-  const email = localStorage.getItem('email');
 
   return (
     <div className="min-h-screen bg-gray-50 px-4 py-10 sm:px-6 lg:px-8">
       <div className="max-w-4xl mx-auto">
         <h1 className="text-3xl sm:text-4xl font-bold mb-4">Welcome 👋</h1>
         <p className="text-gray-700 mb-6 text-base sm:text-lg">
-          {email ? `Logged in as ${email}` : 'You are logged in.'}
+          {user?.email ? `Logged in as ${user.email}` : 'You are not logged in.'}
         </p>
 
         <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">

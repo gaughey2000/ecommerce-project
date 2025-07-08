@@ -1,5 +1,4 @@
-import { createContext, useState } from 'react';
-import { useContext } from 'react';
+import { createContext, useState, useContext } from 'react';
 import { jwtDecode } from 'jwt-decode';
 
 export const AuthContext = createContext();
@@ -18,7 +17,8 @@ export const AuthProvider = ({ children }) => {
         token,
         email,
         username,
-        isAdmin: decoded.isAdmin,
+        role: decoded.role,
+        isAdmin: decoded.role === 'admin',
       };
     } catch (err) {
       console.error('Invalid token', err);
@@ -26,16 +26,21 @@ export const AuthProvider = ({ children }) => {
     }
   });
 
-  const login = ({ token, email, username, isAdmin }) => {
+  const login = ({ token, email, username, role }) => {
     try {
+      const decoded = jwtDecode(token);
+      const userRole = role || decoded.role;
+
       localStorage.setItem('token', token);
       localStorage.setItem('email', email);
       localStorage.setItem('username', username || '');
+
       setUser({
         token,
         email,
         username,
-        isAdmin: isAdmin ?? jwtDecode(token).isAdmin,
+        role: userRole,
+        isAdmin: userRole === 'admin',
       });
     } catch (err) {
       console.error('Token decode failed', err);

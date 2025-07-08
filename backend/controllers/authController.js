@@ -1,29 +1,45 @@
 const pool = require('../db');
 const jwt = require('jsonwebtoken');
+const { validationResult } = require('express-validator');
+const bcrypt = require('bcrypt');
+
 
 const register = async (req, res, next) => {
-  const { email, password, username } = req.body;
-
-  if (!email || !password || !username) {
-    return res.status(400).json({ error: 'Email, password, and username are required' });
+  const errors = validationResult(req);
+  if (!errors.isEmpty()) {
+    return res.status(400).json({ error: errors.array()[0].msg });
   }
 
+  const { email, password, username } = req.body;
+
   try {
+    const existing = await pool.query(
+      'SELECT user_id FROM users WHERE email = $1 OR username = $2',
+      [email, username]
+    );
+    if (existing.rows.length > 0) {
+      return res.status(409).json({ error: 'Email or username already in use' });
+    }
+
+    // ✅ hash password using bcrypt (saltRounds = 10)
+    const hashedPassword = await bcrypt.hash(password, 10);
+
     const result = await pool.query(
-      'INSERT INTO users (email, password, username) VALUES ($1, crypt($2, gen_salt(\'bf\')), $3) RETURNING user_id, email, username',
-      [email, password, username]
+      'INSERT INTO users (email, password, username) VALUES ($1, $2, $3) RETURNING user_id, email, username',
+      [email, hashedPassword, username]
     );
 
+    const user = result.rows[0];
     const token = jwt.sign(
-      { userId: result.rows[0].user_id },
+      { userId: user.user_id, role: 'user' },
       process.env.JWT_SECRET,
-      { expiresIn: '30d' }
+      { expiresIn: '7d' }
     );
 
     res.status(201).json({
-      userId: result.rows[0].user_id,
-      email: result.rows[0].email,
-      username: result.rows[0].username,
+      userId: user.user_id,
+      email: user.email,
+      username: user.username,
       token,
     });
   } catch (error) {
@@ -38,8 +54,8 @@ const login = async (req, res, next) => {
 
   try {
     const result = await pool.query(
-      'SELECT user_id, email, username, is_admin FROM users WHERE email = $1 AND password = crypt($2, password)',
-      [email, password]
+      'SELECT user_id, email, username, role, password FROM users WHERE email = $1',
+      [email]
     );
 
     if (result.rows.length === 0) {
@@ -47,8 +63,14 @@ const login = async (req, res, next) => {
     }
 
     const user = result.rows[0];
+    const isMatch = await bcrypt.compare(password, user.password);
+
+    if (!isMatch) {
+      return res.status(401).json({ error: 'Invalid credentials' });
+    }
+
     const token = jwt.sign(
-      { userId: user.user_id, isAdmin: user.is_admin },
+      { userId: user.user_id, role: user.role },
       process.env.JWT_SECRET,
       { expiresIn: '7d' }
     );
@@ -57,7 +79,6 @@ const login = async (req, res, next) => {
       userId: user.user_id,
       email: user.email,
       username: user.username,
-      isAdmin: user.is_admin,
       token,
     });
   } catch (error) {

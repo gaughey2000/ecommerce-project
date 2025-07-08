@@ -24,9 +24,9 @@ export default function EditProductPage() {
   const handleSubmit = async e => {
     e.preventDefault();
     setError('');
-
+  
     try {
-      let imagePath = form.image_url;
+      let imagePath = form.image;
       if (image) {
         const formData = new FormData();
         formData.append('image', image);
@@ -38,14 +38,15 @@ export default function EditProductPage() {
         if (!resUpload.ok) throw new Error(uploadData.error);
         imagePath = uploadData.image;
       }
-
+  
       const res = await authFetch(`/admin/products/${id}`, {
         method: 'PUT',
-        body: JSON.stringify({ ...form, image_url: imagePath }),
+        body: JSON.stringify({ ...form, image: imagePath }),
       });
+  
       const data = await res.json();
       if (!res.ok) throw new Error(data.error);
-
+  
       navigate('/admin');
     } catch (err) {
       setError(err.message);

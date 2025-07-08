@@ -39,7 +39,7 @@ export default function UserPage() {
       if (!res.ok) throw new Error(data.error);
       setMessage('✅ Profile updated!');
     } catch (err) {
-      setMessage(`❌ ${err.message}`);
+      setMessage('❌ Something went wrong updating your profile.');
     }
   };
 
@@ -62,7 +62,7 @@ export default function UserPage() {
       setPwMessage('✅ Password updated!');
       setPasswordForm({ current: '', new: '', confirm: '' });
     } catch (err) {
-      setPwMessage(`❌ ${err.message}`);
+      setPwMessage('❌ Could not update password. Please try again.');
     }
   };
 
@@ -86,7 +86,8 @@ export default function UserPage() {
               const file = e.target.files[0];
               if (!file || !file.type.startsWith('image/')) return;
               if (file.size > 2 * 1024 * 1024) return alert('Max 2MB');
-              setPreview(URL.createObjectURL(file));
+              const objectUrl = URL.createObjectURL(file);
+              setPreview(objectUrl);
               const formData = new FormData();
               formData.append('image', file);
               const res = await authFetch('/users/me/image', { method: 'POST', body: formData });
@@ -94,6 +95,7 @@ export default function UserPage() {
                 const updated = await res.json();
                 setProfile(p => ({ ...p, profile_image: updated.profile_image }));
               }
+              return () => URL.revokeObjectURL(objectUrl);
             }}
           />
         </label>
@@ -132,6 +134,7 @@ export default function UserPage() {
             name="current"
             value={passwordForm.current}
             onChange={handlePwChange}
+            autoComplete="off"
             className="w-full border p-2 rounded"
             placeholder="Current Password"
           />
@@ -140,6 +143,7 @@ export default function UserPage() {
             name="new"
             value={passwordForm.new}
             onChange={handlePwChange}
+            autoComplete="off"
             className="w-full border p-2 rounded"
             placeholder="New Password"
           />
@@ -148,6 +152,7 @@ export default function UserPage() {
             name="confirm"
             value={passwordForm.confirm}
             onChange={handlePwChange}
+            autoComplete="off"
             className="w-full border p-2 rounded"
             placeholder="Confirm Password"
           />
@@ -179,7 +184,7 @@ export default function UserPage() {
       <section className="text-center">
         <button
           onClick={async () => {
-            if (!confirm('Are you sure you want to delete your account?')) return;
+            if (!confirm('⚠️ This will permanently delete your account and order history. Continue?')) return;
             const res = await authFetch('/users/me', { method: 'DELETE' });
             if (res.ok) {
               alert('Your account has been deleted.');

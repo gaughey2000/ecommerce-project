@@ -113,7 +113,7 @@ exports.updateProduct = async (req, res, next) => {
 
   try {
     const result = await db.query(
-      'UPDATE products SET name = $1, description = $2, price = $3, image_url = $4 WHERE product_id = $5 RETURNING *',
+      'UPDATE products SET name = $1, description = $2, price = $3, image = $4 WHERE product_id = $5 RETURNING *',
       [name, description, price, image_url, id]
     );
     if (result.rowCount === 0) return res.status(404).json({ error: 'Product not found' });

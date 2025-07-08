@@ -1,10 +1,11 @@
 const path = require('path');
-require('dotenv').config(); // No path override
+require('dotenv').config();
 
 const express = require('express');
 const cors = require('cors');
+const helmet = require('helmet');
 const { Pool } = require('pg');
-
+const compression = require('compression');
 const authRoutes = require('./routes/authRoutes');
 const productRoutes = require('./routes/productRoutes');
 const cartRoutes = require('./routes/cartRoutes');
@@ -14,13 +15,24 @@ const uploadRoutes = require('./routes/uploadRoutes');
 const checkoutRoutes = require('./routes/checkoutRoutes');
 const userRoutes = require('./routes/user');
 
+const logger = require('./middleware/logger');
 
 const notFound = require('./middleware/notFound');
 const errorHandler = require('./middleware/errorHandler');
 
 const app = express();
 
-// Database connection
+// --- Security and Hardening ---
+app.set('trust proxy', 1); // Needed if behind proxy (e.g. Heroku, Railway)
+app.disable('x-powered-by'); // Don't leak Express
+app.use(helmet()); // Set secure HTTP headers
+
+// --- CORS and JSON ---
+app.use(cors({ origin: process.env.CORS_ORIGIN || '*' }));
+app.use(express.json({ limit: '10kb' }));
+app.use('/uploads', express.static('uploads'));
+
+// --- DB Connection ---
 const pool = new Pool({
   user: process.env.PGUSER,
   host: process.env.PGHOST,
@@ -31,15 +43,10 @@ const pool = new Pool({
 
 pool
   .connect()
-  .then(() => console.log('🔌 Successfully connected to the ecommerce database'))
+  .then(() => console.log('🔌 Connected to the ecommerce database'))
   .catch(err => console.error('❌ DB connection error:', err));
 
-// Middleware
-app.use(cors());
-app.use(express.json());
-app.use('/uploads', express.static('uploads'));
-
-// API Routes
+// --- Routes ---
 app.use('/api/auth', authRoutes);
 app.use('/api/products', productRoutes);
 app.use('/api/cart', cartRoutes);
@@ -48,21 +55,22 @@ app.use('/api/admin', adminRoutes);
 app.use('/api/uploads', uploadRoutes);
 app.use('/api/checkout', checkoutRoutes);
 app.use('/api/users', userRoutes);
-
-// Error handling
+app.use(logger);
+app.use(compression());
+// --- Fallbacks ---
 app.use(notFound);
 app.use(errorHandler);
 
-// Start server
+// --- Serve frontend in production ---
 const PORT = process.env.PORT || 3000;
 if (process.env.NODE_ENV === 'production') {
   const clientBuildPath = path.join(__dirname, '../client/build');
   app.use(express.static(clientBuildPath));
-
   app.get('*', (req, res) => {
     res.sendFile(path.join(clientBuildPath, 'index.html'));
   });
 }
+
 app.listen(PORT, () => {
   console.log(`🚀 Server running on port ${PORT}`);
 });

@@ -9,9 +9,12 @@ export default function AdminDashboardPage() {
   const [orders, setOrders] = useState([]);
   const [products, setProducts] = useState([]);
   const [filter, setFilter] = useState('pending');
+  const [notice, setNotice] = useState('');
+  const [noticeType, setNoticeType] = useState('');
+  const [loading, setLoading] = useState(true);
 
   useEffect(() => {
-    fetchAdminData();
+    fetchAdminData().finally(() => setLoading(false));
   }, []);
 
   async function fetchAdminData() {
@@ -33,6 +36,8 @@ export default function AdminDashboardPage() {
       setProducts(p);
     } catch (err) {
       console.error('Admin data fetch error:', err);
+      setNotice('Failed to load admin data');
+      setNoticeType('error');
     }
   }
 
@@ -41,8 +46,13 @@ export default function AdminDashboardPage() {
     try {
       await authFetch(`/admin/users/${userId}`, { method: 'DELETE' });
       fetchAdminData();
+      setNotice('✅ User deleted successfully');
+      setNoticeType('success');
+      setTimeout(() => setNotice(''), 3000);
     } catch (err) {
       console.error(err);
+      setNotice('❌ Failed to delete user');
+      setNoticeType('error');
     }
   }
 
@@ -51,8 +61,13 @@ export default function AdminDashboardPage() {
     try {
       await authFetch(`/admin/products/${productId}`, { method: 'DELETE' });
       fetchAdminData();
+      setNotice('✅ Product deleted successfully');
+      setNoticeType('success');
+      setTimeout(() => setNotice(''), 3000);
     } catch (err) {
       console.error(err);
+      setNotice('❌ Failed to delete product');
+      setNoticeType('error');
     }
   }
 
@@ -64,16 +79,35 @@ export default function AdminDashboardPage() {
         body: JSON.stringify({ status: 'shipped' }),
       });
       fetchAdminData();
+      setNotice('✅ Order marked as shipped');
+      setNoticeType('success');
+      setTimeout(() => setNotice(''), 3000);
     } catch (err) {
       console.error(err);
+      setNotice('❌ Failed to update order');
+      setNoticeType('error');
     }
   }
 
   const filteredOrders = orders.filter(order => order.status === filter);
 
+  if (loading) return <p className="text-center text-gray-500">Loading admin data...</p>;
+
   return (
     <div className="max-w-6xl mx-auto px-4 sm:px-6 py-8 space-y-12">
       <h1 className="text-3xl font-bold text-center">Admin Dashboard</h1>
+
+      {notice && (
+        <div className={`text-center mb-4 text-sm font-medium ${noticeType === 'success' ? 'text-green-600' : 'text-red-600'}`}>
+          {notice}
+        </div>
+      )}
+
+      <div className="flex justify-center gap-8 mt-6 text-sm text-gray-600">
+        <span>👥 Users: {users.length}</span>
+        <span>📦 Products: {products.length}</span>
+        <span>🧾 Orders: {orders.length}</span>
+      </div>
 
       <section>
         <h2 className="text-2xl font-semibold mb-4">Users</h2>

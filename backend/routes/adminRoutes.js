@@ -1,7 +1,8 @@
 const express = require('express');
 const router = express.Router();
 const auth = require('../middleware/auth');
-const isAdmin = require('../middleware/isAdmin');
+const requireRole = require('../middleware/requireRole');
+
 const {
   getAllUsers,
   getAllOrders,
@@ -9,27 +10,25 @@ const {
   deleteUser,
   updateProduct,
   getMetrics,
-  createProduct
+  createProduct,
+  deleteProduct,
+  getOrderItemsByOrderId
 } = require('../controllers/adminController');
-const { deleteProduct } = require('../controllers/adminController');
-const { getOrderItemsByOrderId } = require('../controllers/adminController'); 
 
-// Middleware for getting order items by order ID
-router.get('/orders/:id/items', getOrderItemsByOrderId);
-// Admin middleware
-router.use(auth);
-router.use(isAdmin);
+// Protect all routes: must be authenticated and admin
+router.use(auth, requireRole('admin'));
 
-// Routes
+// Admin Routes
 router.get('/users', getAllUsers);
 router.delete('/users/:id', deleteUser);
+
 router.post('/products', createProduct);
+router.put('/products/:id', updateProduct);
+router.delete('/products/:id', deleteProduct);
+
 router.get('/orders', getAllOrders);
 router.patch('/orders/:id', updateOrderStatus);
+router.get('/orders/:id/items', getOrderItemsByOrderId);
 
-router.delete('/products/:id', deleteProduct);
-router.put('/products/:id', updateProduct); // optional for editing
-
-router.get('/api/admin/metrics', getMetrics)
-
+router.get('/metrics', getMetrics); // Fixed route path here (was /api/admin/metrics)
 module.exports = router;
