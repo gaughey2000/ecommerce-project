@@ -34,7 +34,15 @@ app.use(helmet()); // Set secure HTTP headers
 // --- CORS and JSON ---
 app.use(cors({ origin: process.env.CORS_ORIGIN || '*' }));
 app.use(express.json({ limit: '10kb' }));
-app.use('/uploads', express.static('uploads'));
+app.use(express.json({ limit: '10kb' }));
+app.use('/uploads', express.static('uploads', {
+  setHeaders: (res, filePath) => {
+    if (!filePath.match(/\.(jpg|jpeg|png|webp)$/i)) {
+      res.statusCode = 403;
+      return res.end('Forbidden');
+    }
+  }
+}));
 
 // --- DB Connection ---
 const pool = new Pool({
