@@ -5,11 +5,12 @@ const bcrypt = require('bcrypt');
 const { OAuth2Client } = require('google-auth-library');
 const client = new OAuth2Client(process.env.GOOGLE_CLIENT_ID);
 
-
 const register = async (req, res, next) => {
   const errors = validationResult(req);
   if (!errors.isEmpty()) {
-    return res.status(400).json({ error: errors.array()[0].msg });
+    const error = new Error(errors.array()[0].msg);
+    error.status = 400;
+    return next(error);
   }
 
   const { email, password, username } = req.body;
@@ -20,10 +21,11 @@ const register = async (req, res, next) => {
       [email, username]
     );
     if (existing.rows.length > 0) {
-      return res.status(409).json({ error: 'Email or username already in use' });
+      const error = new Error('Email or username already in use');
+      error.status = 409;
+      return next(error);
     }
 
-    // ✅ hash password using bcrypt (saltRounds = 10)
     const hashedPassword = await bcrypt.hash(password, 10);
 
     const result = await pool.query(
@@ -45,7 +47,6 @@ const register = async (req, res, next) => {
       token,
     });
   } catch (error) {
-    console.error('Register error:', error);
     error.status = 500;
     next(error);
   }
@@ -61,14 +62,18 @@ const login = async (req, res, next) => {
     );
 
     if (result.rows.length === 0) {
-      return res.status(401).json({ error: 'Invalid credentials' });
+      const error = new Error('Invalid credentials');
+      error.status = 401;
+      return next(error);
     }
 
     const user = result.rows[0];
     const isMatch = await bcrypt.compare(password, user.password);
 
     if (!isMatch) {
-      return res.status(401).json({ error: 'Invalid credentials' });
+      const error = new Error('Invalid credentials');
+      error.status = 401;
+      return next(error);
     }
 
     const token = jwt.sign(
@@ -81,11 +86,10 @@ const login = async (req, res, next) => {
       userId: user.user_id,
       email: user.email,
       username: user.username,
-      role: user.role, // ✅ add this
+      role: user.role,
       token,
     });
   } catch (error) {
-    console.error('Login error:', error);
     error.status = 500;
     next(error);
   }
@@ -96,7 +100,9 @@ const deleteUser = async (req, res, next) => {
 
   try {
     if (parseInt(userId) === req.user.userId) {
-      return res.status(400).json({ error: 'Cannot delete your own account' });
+      const error = new Error('Cannot delete your own account');
+      error.status = 400;
+      return next(error);
     }
 
     await pool.query('DELETE FROM cart_items WHERE user_id = $1', [userId]);
@@ -109,12 +115,13 @@ const deleteUser = async (req, res, next) => {
     const result = await pool.query('DELETE FROM users WHERE user_id = $1 RETURNING user_id', [userId]);
 
     if (result.rowCount === 0) {
-      return res.status(404).json({ error: 'User not found' });
+      const error = new Error('User not found');
+      error.status = 404;
+      return next(error);
     }
 
     res.json({ message: `User ${userId} deleted` });
   } catch (error) {
-    console.error('Delete user error:', error);
     error.status = 500;
     next(error);
   }
@@ -128,12 +135,13 @@ const getCurrentUser = async (req, res, next) => {
     );
 
     if (result.rows.length === 0) {
-      return res.status(404).json({ error: 'User not found' });
+      const error = new Error('User not found');
+      error.status = 404;
+      return next(error);
     }
 
     res.json(result.rows[0]);
   } catch (error) {
-    console.error('Get user error:', error);
     error.status = 500;
     next(error);
   }
@@ -144,7 +152,6 @@ const getAllUsers = async (req, res, next) => {
     const result = await pool.query('SELECT user_id, email, is_admin FROM users');
     res.json(result.rows);
   } catch (error) {
-    console.error('Get users error:', error);
     error.status = 500;
     next(error);
   }
@@ -154,11 +161,15 @@ const changePassword = async (req, res, next) => {
   const { current, new: newPassword } = req.body;
 
   if (!current || !newPassword) {
-    return res.status(400).json({ error: 'Both current and new password are required.' });
+    const error = new Error('Both current and new password are required.');
+    error.status = 400;
+    return next(error);
   }
 
   if (newPassword.length < 8) {
-    return res.status(400).json({ error: 'New password must be at least 8 characters long.' });
+    const error = new Error('New password must be at least 8 characters long.');
+    error.status = 400;
+    return next(error);
   }
 
   try {
@@ -169,7 +180,9 @@ const changePassword = async (req, res, next) => {
 
     const hashed = result.rows[0]?.password;
     if (!hashed || !(await bcrypt.compare(current, hashed))) {
-      return res.status(401).json({ error: 'Current password is incorrect.' });
+      const error = new Error('Current password is incorrect.');
+      error.status = 401;
+      return next(error);
     }
 
     const hashedNew = await bcrypt.hash(newPassword, 10);
@@ -180,7 +193,6 @@ const changePassword = async (req, res, next) => {
 
     res.json({ message: 'Password updated successfully.' });
   } catch (error) {
-    console.error('Change password error:', error);
     error.status = 500;
     next(error);
   }
@@ -188,7 +200,11 @@ const changePassword = async (req, res, next) => {
 
 const googleLogin = async (req, res, next) => {
   const { credential } = req.body;
-  if (!credential) return res.status(400).json({ error: 'Missing Google credential' });
+  if (!credential) {
+    const error = new Error('Missing Google credential');
+    error.status = 400;
+    return next(error);
+  }
 
   try {
     const ticket = await client.verifyIdToken({
@@ -200,7 +216,6 @@ const googleLogin = async (req, res, next) => {
     const email = payload.email;
     const username = payload.name || email.split('@')[0];
 
-    // Check if user exists
     let user = await pool.query('SELECT user_id, email, username, role FROM users WHERE email = $1', [email]);
 
     if (user.rows.length === 0) {
@@ -218,15 +233,16 @@ const googleLogin = async (req, res, next) => {
     );
 
     res.json({
-      userId: user.user_id,
-      email: user.email,
-      username: user.username,
-      role: user.role,
+      userId: user.rows[0].user_id,
+      email: user.rows[0].email,
+      username: user.rows[0].username,
+      role: user.rows[0].role,
       token,
     });
   } catch (err) {
-    console.error('Google login error:', err);
-    res.status(401).json({ error: 'Google authentication failed' });
+    const error = new Error('Google authentication failed');
+    error.status = 401;
+    next(error);
   }
 };
 

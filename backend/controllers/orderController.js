@@ -1,13 +1,14 @@
 const pool = require('../db');
-const { validationResult, body, param } = require('express-validator');
 
 // Create a new order from user's cart
-const createOrder = async (req, res) => {
+const createOrder = async (req, res, next) => {
   const userId = req.user.userId;
   const { name, email, address } = req.body;
 
   if (!name || !email || !address) {
-    return res.status(400).json({ error: 'Missing name, email or address' });
+    const error = new Error('Missing name, email or address');
+    error.status = 400;
+    return next(error);
   }
 
   try {
@@ -20,7 +21,9 @@ const createOrder = async (req, res) => {
     );
 
     if (cart.rows.length === 0) {
-      return res.status(400).json({ error: 'Your cart is empty' });
+      const error = new Error('Your cart is empty');
+      error.status = 400;
+      return next(error);
     }
 
     const total = cart.rows.reduce((sum, item) => sum + item.quantity * item.price, 0);
@@ -47,13 +50,13 @@ const createOrder = async (req, res) => {
 
     res.status(201).json({ message: 'Order placed successfully', orderId });
   } catch (err) {
-    console.error('Create order error:', err);
-    res.status(500).json({ error: 'Order creation failed' });
+    err.status = 500;
+    next(err);
   }
 };
 
 // Get all orders for the current user
-const getOrderHistory = async (req, res) => {
+const getOrderHistory = async (req, res, next) => {
   try {
     const userId = req.user.userId;
     const result = await pool.query(
@@ -62,38 +65,46 @@ const getOrderHistory = async (req, res) => {
     );
     res.json(result.rows);
   } catch (err) {
-    console.error('Fetch order history error:', err);
-    res.status(500).json({ error: 'Could not retrieve orders' });
+    err.status = 500;
+    next(err);
   }
 };
 
 // Get one order by ID
-const getOrderById = async (req, res) => {
+const getOrderById = async (req, res, next) => {
   const { orderId } = req.params;
   if (!/^[0-9]+$/.test(orderId)) {
-    return res.status(400).json({ error: 'Invalid order ID' });
+    const error = new Error('Invalid order ID');
+    error.status = 400;
+    return next(error);
   }
+
   try {
     const result = await pool.query(
       'SELECT * FROM orders WHERE order_id = $1',
       [orderId]
     );
     if (result.rows.length === 0) {
-      return res.status(404).json({ error: 'Order not found' });
+      const error = new Error('Order not found');
+      error.status = 404;
+      return next(error);
     }
     res.json(result.rows[0]);
   } catch (err) {
-    console.error('Fetch single order error:', err);
-    res.status(500).json({ error: 'Could not retrieve order' });
+    err.status = 500;
+    next(err);
   }
 };
 
 // Get items for a specific order
-const getOrderItemsByOrderId = async (req, res) => {
+const getOrderItemsByOrderId = async (req, res, next) => {
   const { orderId } = req.params;
   if (!/^[0-9]+$/.test(orderId)) {
-    return res.status(400).json({ error: 'Invalid order ID' });
+    const error = new Error('Invalid order ID');
+    error.status = 400;
+    return next(error);
   }
+
   try {
     const result = await pool.query(
       `SELECT * FROM order_items WHERE order_id = $1`,
@@ -101,8 +112,8 @@ const getOrderItemsByOrderId = async (req, res) => {
     );
     res.json(result.rows);
   } catch (err) {
-    console.error('Fetch order items error:', err);
-    res.status(500).json({ error: 'Could not retrieve order items' });
+    err.status = 500;
+    next(err);
   }
 };
 

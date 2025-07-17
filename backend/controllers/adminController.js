@@ -2,12 +2,10 @@ const db = require('../db');
 
 // GET all users
 exports.getAllUsers = async (req, res, next) => {
-  console.log('getAllUsers hit:', req.user);
   try {
     const result = await db.query('SELECT user_id, email, is_admin FROM users');
     res.json(result.rows);
   } catch (err) {
-    console.error('getAllUsers failed:', err);
     err.status = 500;
     next(err);
   }
@@ -29,7 +27,6 @@ exports.getAllOrders = async (req, res, next) => {
     `);
     res.json(result.rows);
   } catch (err) {
-    console.error('getAllOrders failed:', err);
     err.status = 500;
     next(err);
   }
@@ -40,17 +37,18 @@ exports.updateOrderStatus = async (req, res, next) => {
   const { id } = req.params;
   const { status } = req.body;
 
-  console.log('Updating order:', id, 'to status:', status);
-
   try {
     const result = await db.query(
       'UPDATE orders SET status = $1 WHERE order_id = $2 RETURNING *',
       [status, id]
     );
-    if (result.rowCount === 0) return res.status(404).json({ error: 'Order not found' });
+    if (result.rowCount === 0) {
+      const error = new Error('Order not found');
+      error.status = 404;
+      return next(error);
+    }
     res.json(result.rows[0]);
   } catch (err) {
-    console.error('updateOrderStatus failed:', err);
     err.status = 500;
     next(err);
   }
@@ -61,10 +59,13 @@ exports.deleteUser = async (req, res, next) => {
   const { id } = req.params;
   try {
     const result = await db.query('DELETE FROM users WHERE user_id = $1 RETURNING *', [id]);
-    if (result.rowCount === 0) return res.status(404).json({ error: 'User not found' });
+    if (result.rowCount === 0) {
+      const error = new Error('User not found');
+      error.status = 404;
+      return next(error);
+    }
     res.json({ message: 'User deleted', user: result.rows[0] });
   } catch (err) {
-    console.error('deleteUser failed:', err);
     err.status = 500;
     next(err);
   }
@@ -74,10 +75,13 @@ exports.deleteUser = async (req, res, next) => {
 exports.deleteProduct = async (req, res, next) => {
   try {
     const result = await db.query('DELETE FROM products WHERE product_id = $1', [req.params.id]);
-    if (result.rowCount === 0) return res.status(404).json({ error: 'Product not found' });
+    if (result.rowCount === 0) {
+      const error = new Error('Product not found');
+      error.status = 404;
+      return next(error);
+    }
     res.status(204).send();
   } catch (err) {
-    console.error('deleteProduct failed:', err);
     err.status = 500;
     next(err);
   }
@@ -88,7 +92,9 @@ exports.createProduct = async (req, res, next) => {
   const { name, description, price, stock_quantity, image } = req.body;
 
   if (!name || price == null || stock_quantity == null) {
-    return res.status(400).json({ error: 'Name, price, and stock quantity are required' });
+    const error = new Error('Name, price, and stock quantity are required');
+    error.status = 400;
+    return next(error);
   }
 
   try {
@@ -100,7 +106,6 @@ exports.createProduct = async (req, res, next) => {
     );
     res.status(201).json(result.rows[0]);
   } catch (err) {
-    console.error('createProduct failed:', err);
     err.status = 500;
     next(err);
   }
@@ -116,10 +121,13 @@ exports.updateProduct = async (req, res, next) => {
       'UPDATE products SET name = $1, description = $2, price = $3, image = $4 WHERE product_id = $5 RETURNING *',
       [name, description, price, image_url, id]
     );
-    if (result.rowCount === 0) return res.status(404).json({ error: 'Product not found' });
+    if (result.rowCount === 0) {
+      const error = new Error('Product not found');
+      error.status = 404;
+      return next(error);
+    }
     res.json(result.rows[0]);
   } catch (err) {
-    console.error('updateProduct failed:', err);
     err.status = 500;
     next(err);
   }
@@ -137,7 +145,6 @@ exports.getOrderItemsByOrderId = async (req, res, next) => {
     `, [orderId]);
     res.json(result.rows);
   } catch (err) {
-    console.error('getOrderItemsByOrderId failed:', err);
     err.status = 500;
     next(err);
   }
@@ -156,7 +163,6 @@ exports.getMetrics = async (req, res, next) => {
       totalProducts: parseInt(productsResult.rows[0].count, 10),
     });
   } catch (err) {
-    console.error('getMetrics failed:', err);
     err.status = 500;
     next(err);
   }

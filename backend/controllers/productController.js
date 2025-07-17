@@ -1,7 +1,7 @@
 const pool = require('../db');
 
 // GET /products?query=...
-const getProducts = async (req, res) => {
+const getProducts = async (req, res, next) => {
   const { query } = req.query;
   try {
     const sql = query
@@ -14,25 +14,31 @@ const getProducts = async (req, res) => {
     const result = await pool.query(sql, params);
     res.json(result.rows);
   } catch (error) {
-    console.error('Get products failed:', error.stack);
-    res.status(500).json({ error: 'Could not retrieve products' });
+    error.status = 500;
+    next(error);
   }
 };
 
 // POST /products
-const addProduct = async (req, res) => {
+const addProduct = async (req, res, next) => {
   const { name, price, description, stock_quantity, image } = req.body;
 
   if (!name || price == null || stock_quantity == null) {
-    return res.status(400).json({ error: 'Name, price, and stock quantity are required' });
+    const error = new Error('Name, price, and stock quantity are required');
+    error.status = 400;
+    return next(error);
   }
 
   if (Number(price) <= 0) {
-    return res.status(400).json({ error: 'Price must be greater than 0' });
+    const error = new Error('Price must be greater than 0');
+    error.status = 400;
+    return next(error);
   }
 
   if (Number(stock_quantity) < 0) {
-    return res.status(400).json({ error: 'Stock quantity cannot be negative' });
+    const error = new Error('Stock quantity cannot be negative');
+    error.status = 400;
+    return next(error);
   }
 
   try {
@@ -44,26 +50,32 @@ const addProduct = async (req, res) => {
     );
     res.status(201).json(result.rows[0]);
   } catch (error) {
-    console.error('Add product failed:', error.stack);
-    res.status(500).json({ error: 'Failed to add product' });
+    error.status = 500;
+    next(error);
   }
 };
 
 // PATCH /products/:id
-const updateProduct = async (req, res) => {
+const updateProduct = async (req, res, next) => {
   const { id } = req.params;
   const { name, price, description, stock_quantity, image } = req.body;
 
   if (!name || price == null || stock_quantity == null) {
-    return res.status(400).json({ error: 'All fields are required' });
+    const error = new Error('All fields are required');
+    error.status = 400;
+    return next(error);
   }
 
   if (Number(price) <= 0) {
-    return res.status(400).json({ error: 'Price must be greater than 0' });
+    const error = new Error('Price must be greater than 0');
+    error.status = 400;
+    return next(error);
   }
 
   if (Number(stock_quantity) < 0) {
-    return res.status(400).json({ error: 'Stock quantity cannot be negative' });
+    const error = new Error('Stock quantity cannot be negative');
+    error.status = 400;
+    return next(error);
   }
 
   try {
@@ -76,21 +88,25 @@ const updateProduct = async (req, res) => {
     );
 
     if (result.rows.length === 0) {
-      return res.status(404).json({ error: 'Product not found' });
+      const error = new Error('Product not found');
+      error.status = 404;
+      return next(error);
     }
 
     res.json(result.rows[0]);
   } catch (error) {
-    console.error('Update product failed:', error.stack);
-    res.status(500).json({ error: 'Failed to update product' });
+    error.status = 500;
+    next(error);
   }
 };
 
 // GET /products/:id
-const getProductById = async (req, res) => {
+const getProductById = async (req, res, next) => {
   const id = parseInt(req.params.id, 10);
   if (isNaN(id)) {
-    return res.status(400).json({ error: 'Invalid product ID' });
+    const error = new Error('Invalid product ID');
+    error.status = 400;
+    return next(error);
   }
 
   try {
@@ -102,21 +118,25 @@ const getProductById = async (req, res) => {
     );
 
     if (result.rows.length === 0) {
-      return res.status(404).json({ error: 'Product not found' });
+      const error = new Error('Product not found');
+      error.status = 404;
+      return next(error);
     }
 
     res.json(result.rows[0]);
   } catch (error) {
-    console.error('Get product by ID failed:', error.stack);
-    res.status(500).json({ error: 'Could not retrieve product' });
+    error.status = 500;
+    next(error);
   }
 };
 
 // DELETE /products/:id
-const deleteProduct = async (req, res) => {
+const deleteProduct = async (req, res, next) => {
   const id = parseInt(req.params.id, 10);
   if (isNaN(id)) {
-    return res.status(400).json({ error: 'Invalid product ID' });
+    const error = new Error('Invalid product ID');
+    error.status = 400;
+    return next(error);
   }
 
   try {
@@ -126,13 +146,15 @@ const deleteProduct = async (req, res) => {
     );
 
     if (result.rowCount === 0) {
-      return res.status(404).json({ error: 'Product not found' });
+      const error = new Error('Product not found');
+      error.status = 404;
+      return next(error);
     }
 
     res.json({ message: 'Product deleted', id: result.rows[0].id });
   } catch (error) {
-    console.error('Delete product failed:', error.stack);
-    res.status(500).json({ error: 'Could not delete product' });
+    error.status = 500;
+    next(error);
   }
 };
 

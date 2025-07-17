@@ -30,7 +30,8 @@ const upload = multer({
 
 const handleMulterError = (err, req, res, next) => {
   if (err instanceof multer.MulterError || err.message) {
-    return res.status(400).json({ error: err.message });
+    err.status = 400;
+    return next(err);
   }
   next();
 };
@@ -38,24 +39,28 @@ const handleMulterError = (err, req, res, next) => {
 const uploadProductImage = [
   upload.single('image'),
   handleMulterError,
-  async (req, res) => {
+  async (req, res, next) => {
     if (!req.file) {
-      return res.status(400).json({ error: 'No image file received' });
+      const error = new Error('No image file received');
+      error.status = 400;
+      return next(error);
     }
 
     try {
       const imagePath = `/uploads/${req.file.filename}`;
       res.json({ image: imagePath });
     } catch (err) {
-      console.error('Product image processing failed:', err.stack);
-      res.status(500).json({ error: 'Image upload failed' });
+      err.status = 500;
+      next(err);
     }
   }
 ];
 
-const uploadProfileImage = async (req, res) => {
+const uploadProfileImage = async (req, res, next) => {
   if (!req.file) {
-    return res.status(400).json({ error: 'No image file received' });
+    const error = new Error('No image file received');
+    error.status = 400;
+    return next(error);
   }
 
   try {
@@ -66,8 +71,8 @@ const uploadProfileImage = async (req, res) => {
     );
     res.json({ profile_image: imagePath });
   } catch (err) {
-    console.error('Profile image DB update failed:', err.stack);
-    res.status(500).json({ error: 'Could not save profile image' });
+    err.status = 500;
+    next(err);
   }
 };
 

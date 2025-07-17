@@ -14,7 +14,9 @@ exports.addToCart = async (req, res, next) => {
 
   const qty = sanitiseQuantity(quantity);
   if (!productId || !qty) {
-    return res.status(400).json({ error: 'Invalid product or quantity' });
+    const error = new Error('Invalid product or quantity');
+    error.status = 400;
+    return next(error);
   }
 
   try {
@@ -22,7 +24,12 @@ exports.addToCart = async (req, res, next) => {
       'SELECT stock_quantity FROM products WHERE product_id = $1',
       [productId]
     );
-    if (stockCheck.rows.length === 0) return res.status(404).json({ error: 'Product not found' });
+
+    if (stockCheck.rows.length === 0) {
+      const error = new Error('Product not found');
+      error.status = 404;
+      return next(error);
+    }
 
     const stock = stockCheck.rows[0].stock_quantity;
 
@@ -35,7 +42,9 @@ exports.addToCart = async (req, res, next) => {
     const totalQty = currentQty + qty;
 
     if (totalQty > stock) {
-      return res.status(400).json({ error: `Only ${stock} left in stock` });
+      const error = new Error(`Only ${stock} left in stock`);
+      error.status = 400;
+      return next(error);
     }
 
     if (existing.rows.length) {
@@ -43,16 +52,16 @@ exports.addToCart = async (req, res, next) => {
         `UPDATE cart_items SET quantity = $1 WHERE user_id = $2 AND product_id = $3 RETURNING *`,
         [totalQty, userId, productId]
       );
-      return res.status(201).json(updated.rows[0]);
+      res.status(201).json(updated.rows[0]);
     } else {
       const inserted = await pool.query(
         `INSERT INTO cart_items (user_id, product_id, quantity) VALUES ($1, $2, $3) RETURNING *`,
         [userId, productId, qty]
       );
-      return res.status(201).json(inserted.rows[0]);
+      res.status(201).json(inserted.rows[0]);
     }
   } catch (err) {
-    console.error('addToCart error:', err);
+    err.status = 500;
     next(err);
   }
 };
@@ -64,17 +73,27 @@ exports.updateCartQuantity = async (req, res, next) => {
   const { quantity } = req.body;
 
   const qty = sanitiseQuantity(quantity);
-  if (!qty) return res.status(400).json({ error: 'Invalid quantity' });
+  if (!qty) {
+    const error = new Error('Invalid quantity');
+    error.status = 400;
+    return next(error);
+  }
 
   try {
     const result = await pool.query(
       `UPDATE cart_items SET quantity = $1 WHERE cart_item_id = $2 AND user_id = $3 RETURNING *`,
       [qty, cartItemId, userId]
     );
-    if (result.rowCount === 0) return res.status(404).json({ error: 'Cart item not found' });
+
+    if (result.rowCount === 0) {
+      const error = new Error('Cart item not found');
+      error.status = 404;
+      return next(error);
+    }
+
     res.json(result.rows[0]);
   } catch (err) {
-    console.error('updateCartQuantity error:', err);
+    err.status = 500;
     next(err);
   }
 };
@@ -89,10 +108,16 @@ exports.removeFromCart = async (req, res, next) => {
       `DELETE FROM cart_items WHERE cart_item_id = $1 AND user_id = $2 RETURNING *`,
       [cartItemId, userId]
     );
-    if (result.rowCount === 0) return res.status(404).json({ error: 'Item not found' });
+
+    if (result.rowCount === 0) {
+      const error = new Error('Item not found');
+      error.status = 404;
+      return next(error);
+    }
+
     res.status(204).send();
   } catch (err) {
-    console.error('removeFromCart error:', err);
+    err.status = 500;
     next(err);
   }
 };
@@ -102,14 +127,16 @@ exports.clearCart = async (req, res, next) => {
   const { userId } = req.params;
 
   if (parseInt(userId) !== req.user.userId) {
-    return res.status(403).json({ error: 'You can only clear your own cart' });
+    const error = new Error('You can only clear your own cart');
+    error.status = 403;
+    return next(error);
   }
 
   try {
     await pool.query('DELETE FROM cart_items WHERE user_id = $1', [userId]);
     res.status(204).send();
   } catch (err) {
-    console.error('clearCart error:', err);
+    err.status = 500;
     next(err);
   }
 };
@@ -128,7 +155,7 @@ exports.getCart = async (req, res, next) => {
     );
     res.json(result.rows);
   } catch (err) {
-    console.error('getCart error:', err);
+    err.status = 500;
     next(err);
   }
 };

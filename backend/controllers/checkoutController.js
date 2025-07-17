@@ -10,22 +10,30 @@ const checkout = async (req, res, next) => {
     !shipping_info?.email ||
     !shipping_info?.address
   ) {
-    return res.status(400).json({ error: 'Missing shipping details' });
+    const error = new Error('Missing shipping details');
+    error.status = 400;
+    return next(error);
   }
 
   // Validate payment info
   const { cardNumber, expiry, cvv } = payment_info || {};
 
   if (!cardNumber || !/^\d{16}$/.test(cardNumber)) {
-    return res.status(400).json({ error: 'Card number must be 16 digits' });
+    const error = new Error('Card number must be 16 digits');
+    error.status = 400;
+    return next(error);
   }
 
   if (!expiry || !/^\d{2}\/\d{2}$/.test(expiry)) {
-    return res.status(400).json({ error: 'Expiry must be in MM/YY format' });
+    const error = new Error('Expiry must be in MM/YY format');
+    error.status = 400;
+    return next(error);
   }
 
   if (!cvv || !/^\d{3}$/.test(cvv)) {
-    return res.status(400).json({ error: 'CVV must be 3 digits' });
+    const error = new Error('CVV must be 3 digits');
+    error.status = 400;
+    return next(error);
   }
 
   const client = await pool.connect();
@@ -43,7 +51,9 @@ const checkout = async (req, res, next) => {
 
     if (cartResult.rows.length === 0) {
       await client.query('ROLLBACK');
-      return res.status(400).json({ error: 'Cart is empty' });
+      const error = new Error('Cart is empty');
+      error.status = 400;
+      return next(error);
     }
 
     // 2. Validate stock levels and calculate total
@@ -51,9 +61,9 @@ const checkout = async (req, res, next) => {
     for (const item of cartResult.rows) {
       if (item.quantity > item.stock_quantity) {
         await client.query('ROLLBACK');
-        return res.status(400).json({
-          error: `Only ${item.stock_quantity} left in stock for "${item.name}"`
-        });
+        const error = new Error(`Only ${item.stock_quantity} left in stock for "${item.name}"`);
+        error.status = 400;
+        return next(error);
       }
       total += item.quantity * parseFloat(item.price);
     }
@@ -62,7 +72,9 @@ const checkout = async (req, res, next) => {
     const paymentSuccess = true;
     if (!paymentSuccess) {
       await client.query('ROLLBACK');
-      return res.status(400).json({ error: 'Payment failed' });
+      const error = new Error('Payment failed');
+      error.status = 400;
+      return next(error);
     }
 
     // 4. Create order
@@ -100,10 +112,14 @@ const checkout = async (req, res, next) => {
   } catch (err) {
     await client.query('ROLLBACK');
     if (err.message.includes('products_stock_quantity_check')) {
-      return res.status(400).json({ error: 'Cannot order more than available stock' });
+      const error = new Error('Cannot order more than available stock');
+      error.status = 400;
+      return next(error);
     }
+
     console.error('Checkout failed:', err);
-    res.status(500).json({ error: 'Something went wrong during checkout' });
+    err.status = 500;
+    return next(err);
   } finally {
     client.release();
   }
