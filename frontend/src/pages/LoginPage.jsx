@@ -1,6 +1,7 @@
-import { useState, useContext } from 'react';
+import { useState, useContext, useEffect } from 'react';
 import { AuthContext } from '../context/AuthContext';
 import { useNavigate } from 'react-router-dom';
+import { GoogleLogin } from '@react-oauth/google';
 
 export default function LoginPage() {
   const { login } = useContext(AuthContext);
@@ -8,7 +9,13 @@ export default function LoginPage() {
   const [password, setPassword] = useState('');
   const [error, setError] = useState('');
   const [loading, setLoading] = useState(false);
+  const [isClient, setIsClient] = useState(false); // ✅ fix Google SDK load issue
+
   const navigate = useNavigate();
+
+  useEffect(() => {
+    setIsClient(true); // ✅ ensure Google SDK is only used on client
+  }, []);
 
   const handleSubmit = async e => {
     e.preventDefault();
@@ -24,7 +31,7 @@ export default function LoginPage() {
       const res = await fetch('/api/auth/login', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ email, password })
+        body: JSON.stringify({ email, password }),
       });
       const data = await res.json();
       if (!res.ok) throw new Error(data.error || 'Login failed');
@@ -37,6 +44,27 @@ export default function LoginPage() {
     }
   };
 
+  const handleGoogleSuccess = async (credentialResponse) => {
+    try {
+      const res = await fetch('/api/auth/google', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ credential: credentialResponse.credential }),
+      });
+
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error || 'Google login failed');
+      login(data);
+      navigate('/');
+    } catch (err) {
+      setError(err.message);
+    }
+  };
+
+  const handleGoogleError = () => {
+    setError('Google login was cancelled or failed');
+  };
+
   return (
     <div className="min-h-screen flex items-center justify-center bg-gray-100 px-4">
       <form
@@ -45,8 +73,10 @@ export default function LoginPage() {
       >
         <h1 className="text-2xl font-bold text-center">Login</h1>
         {error && <p className="text-red-600 text-sm text-center">{error}</p>}
+
         <input
           type="email"
+          autoComplete="email"
           placeholder="Email"
           value={email}
           onChange={e => setEmail(e.target.value)}
@@ -55,6 +85,7 @@ export default function LoginPage() {
         />
         <input
           type="password"
+          autoComplete="current-password"
           placeholder="Password"
           value={password}
           onChange={e => setPassword(e.target.value)}
@@ -68,6 +99,18 @@ export default function LoginPage() {
         >
           {loading ? 'Signing in...' : 'Sign In'}
         </button>
+
+        <div className="text-center">
+          <hr className="my-4" />
+          <p className="text-sm text-gray-500 mb-2">Or sign in with</p>
+          {isClient && (
+            <GoogleLogin
+              onSuccess={handleGoogleSuccess}
+              onError={handleGoogleError}
+              useOneTap
+            />
+          )}
+        </div>
       </form>
     </div>
   );

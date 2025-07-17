@@ -28,9 +28,12 @@ const checkout = async (req, res, next) => {
     return res.status(400).json({ error: 'CVV must be 3 digits' });
   }
 
+  const client = await pool.connect();
   try {
+    await client.query('BEGIN');
+
     // 1. Fetch cart
-    const cartResult = await pool.query(
+    const cartResult = await client.query(
       `SELECT ci.product_id, ci.quantity, p.price, p.stock_quantity, p.name
        FROM cart_items ci
        JOIN products p ON ci.product_id = p.product_id
@@ -39,6 +42,7 @@ const checkout = async (req, res, next) => {
     );
 
     if (cartResult.rows.length === 0) {
+      await client.query('ROLLBACK');
       return res.status(400).json({ error: 'Cart is empty' });
     }
 
@@ -46,6 +50,7 @@ const checkout = async (req, res, next) => {
     let total = 0;
     for (const item of cartResult.rows) {
       if (item.quantity > item.stock_quantity) {
+        await client.query('ROLLBACK');
         return res.status(400).json({
           error: `Only ${item.stock_quantity} left in stock for "${item.name}"`
         });
@@ -56,11 +61,12 @@ const checkout = async (req, res, next) => {
     // 3. Simulate payment
     const paymentSuccess = true;
     if (!paymentSuccess) {
+      await client.query('ROLLBACK');
       return res.status(400).json({ error: 'Payment failed' });
     }
 
     // 4. Create order
-    const orderResult = await pool.query(
+    const orderResult = await client.query(
       `INSERT INTO orders (user_id, status, total_amount, name, email, address)
        VALUES ($1, 'pending', $2, $3, $4, $5)
        RETURNING order_id`,
@@ -70,13 +76,13 @@ const checkout = async (req, res, next) => {
 
     // 5. Insert items and update stock
     for (const item of cartResult.rows) {
-      await pool.query(
+      await client.query(
         `INSERT INTO order_items (order_id, product_id, quantity, unit_price)
          VALUES ($1, $2, $3, $4)`,
         [orderId, item.product_id, item.quantity, item.price]
       );
 
-      await pool.query(
+      await client.query(
         `UPDATE products
          SET stock_quantity = stock_quantity - $1
          WHERE product_id = $2`,
@@ -85,18 +91,21 @@ const checkout = async (req, res, next) => {
     }
 
     // 6. Clear cart
-    await pool.query('DELETE FROM cart_items WHERE user_id = $1', [userId]);
+    await client.query('DELETE FROM cart_items WHERE user_id = $1', [userId]);
 
-    // 7. Respond
+    // 7. Commit transaction
+    await client.query('COMMIT');
     return res.status(201).json({ orderId, total });
 
   } catch (err) {
+    await client.query('ROLLBACK');
     if (err.message.includes('products_stock_quantity_check')) {
       return res.status(400).json({ error: 'Cannot order more than available stock' });
     }
-
     console.error('Checkout failed:', err);
     res.status(500).json({ error: 'Something went wrong during checkout' });
+  } finally {
+    client.release();
   }
 };
 

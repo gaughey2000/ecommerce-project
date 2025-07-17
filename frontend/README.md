@@ -1,60 +1,136 @@
-E-Commerce Platform
+🛒 PERN E-commerce App
 
-A full-stack e-commerce application featuring user authentication, product listing & management, shopping cart, checkout flow, order history, and an admin dashboard. It’s built with a RESTful Node.js/Express API, PostgreSQL database, and a React + Vite frontend.
+A full-stack e-commerce application built with PostgreSQL, Express.js, React, and Node.js (PERN). Features role-based authentication, product management, cart and checkout, admin dashboard, and image uploads.
 
-⚙️ Setup
-	1.	Clone the repo
+⸻
 
-git clone https://github.com/yourusername/e-commerce.git
-cd e-commerce
+🚀 Getting Started
 
+🧱 Prerequisites
+	•	Node.js v18+
+	•	PostgreSQL
+	•	Yarn or npm
 
-	2.	Environment Variables
-Create a .env file in the root and add:
+🔧 Backend Setup
 
-# Backend
-DATABASE_URL=postgresql://user:password@localhost:5432/ecommerce
-JWT_SECRET=your_jwt_secret
-PORT=5000
-
-# Frontend
-VITE_API_URL=http://localhost:5000/api
-
-
-	3.	Database Setup
-Make sure PostgreSQL is running, then:
-
-# Create database
-psql -U postgres -c "CREATE DATABASE ecommerce;"
-
-# Apply schema and seed data
-psql -U postgres -d ecommerce -f backend/schema.sql
-psql -U postgres -d ecommerce -f backend/seed.sql
-
-
-	4.	Install Dependencies & Run
-
-# Backend
 cd backend
-npm install
-npm run dev
+cp .env.example .env
+yarn install
+yarn dev
 
-# Frontend
-cd ../frontend
-npm install
-npm run dev
+🎨 Frontend Setup
+
+cd frontend
+yarn install
+yarn dev
 
 
-	5.	Access the App
-Open your browser at http://localhost:3000.
+⸻
 
-🛠️ Tech Stack
-	•	Backend: Node.js, Express, PostgreSQL
-	•	Frontend: React, Vite
-	•	Authentication: JWT, bcrypt
-	•	File Uploads: Multer
-	•	Validation: express-validator
+🔑 Environment Variables
+
+See .env.example for required variables.
+
+Backend:
+	•	PORT
+	•	DATABASE_URL
+	•	JWT_SECRET
+	•	NODE_ENV
+	•	CLOUDINARY_URL (if using Cloudinary for images)
+
+Frontend:
+	•	VITE_API_URL
+	•	VITE_GOOGLE_CLIENT_ID
+
+⸻
+
+📬 API Routes Summary
+
+Auth
+	•	POST /auth/register
+	•	POST /auth/login
+	•	POST /auth/google
+	•	POST /auth/change-password
+
+Users
+	•	GET /users/me
+	•	PATCH /users/me
+
+Products
+	•	GET /products
+	•	GET /products/:id
+	•	POST /products (admin only)
+	•	PUT /products/:id (admin only)
+	•	DELETE /products/:id (admin only)
+
+Cart
+	•	GET /cart
+	•	POST /cart
+	•	PATCH /cart/:itemId
+	•	DELETE /cart/:itemId
+
+Orders
+	•	GET /orders
+	•	POST /orders/checkout
+
+Admin (Protected)
+	•	GET /admin/users
+	•	GET /admin/orders
+
+⸻
+
+👥 Roles and Permissions
+
+Role	Permissions
+User	Browse, buy, manage cart & profile
+Admin	Manage users, products, orders
+
+
+⸻
+
+🧪 Test Credentials
+	•	Admin
+	•	Email: admin@example.com
+	•	Password: admin123
+	•	User
+	•	Email: user@example.com
+	•	Password: user123
+
+⸻
+
+📁 Project Structure
+
+backend/
+  ├── controllers/
+  ├── routes/
+  ├── middleware/
+  ├── models/
+  └── utils/
+
+frontend/
+  ├── src/
+      ├── components/
+      ├── pages/
+      ├── context/
+      └── api/
+
+
+⸻
+
+🧹 To-Do Checklist
+	•	Input validation (all routes)
+	•	Checkout transaction wrapping
+	•	Postman collection
+	•	Basic backend tests
+	•	Form validation
+	•	Error handling & feedback
+	•	.env.example file
+	•	Security & rate limiting
+
+⸻
 
 📄 License
 
-This project is licensed under the MIT License.
+MIT
+
+⸻

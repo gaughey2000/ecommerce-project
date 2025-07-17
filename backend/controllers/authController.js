@@ -2,6 +2,8 @@ const pool = require('../db');
 const jwt = require('jsonwebtoken');
 const { validationResult } = require('express-validator');
 const bcrypt = require('bcrypt');
+const { OAuth2Client } = require('google-auth-library');
+const client = new OAuth2Client(process.env.GOOGLE_CLIENT_ID);
 
 
 const register = async (req, res, next) => {
@@ -79,6 +81,7 @@ const login = async (req, res, next) => {
       userId: user.user_id,
       email: user.email,
       username: user.username,
+      role: user.role, // ✅ add this
       token,
     });
   } catch (error) {
@@ -160,17 +163,19 @@ const changePassword = async (req, res, next) => {
 
   try {
     const result = await pool.query(
-      'SELECT user_id FROM users WHERE user_id = $1 AND password = crypt($2, password)',
-      [req.user.userId, current]
+      'SELECT password FROM users WHERE user_id = $1',
+      [req.user.userId]
     );
 
-    if (result.rowCount === 0) {
+    const hashed = result.rows[0]?.password;
+    if (!hashed || !(await bcrypt.compare(current, hashed))) {
       return res.status(401).json({ error: 'Current password is incorrect.' });
     }
 
+    const hashedNew = await bcrypt.hash(newPassword, 10);
     await pool.query(
-      'UPDATE users SET password = crypt($1, gen_salt(\'bf\')) WHERE user_id = $2',
-      [newPassword, req.user.userId]
+      'UPDATE users SET password = $1 WHERE user_id = $2',
+      [hashedNew, req.user.userId]
     );
 
     res.json({ message: 'Password updated successfully.' });
@@ -181,6 +186,50 @@ const changePassword = async (req, res, next) => {
   }
 };
 
+const googleLogin = async (req, res, next) => {
+  const { credential } = req.body;
+  if (!credential) return res.status(400).json({ error: 'Missing Google credential' });
+
+  try {
+    const ticket = await client.verifyIdToken({
+      idToken: credential,
+      audience: process.env.GOOGLE_CLIENT_ID
+    });
+
+    const payload = ticket.getPayload();
+    const email = payload.email;
+    const username = payload.name || email.split('@')[0];
+
+    // Check if user exists
+    let user = await pool.query('SELECT user_id, email, username, role FROM users WHERE email = $1', [email]);
+
+    if (user.rows.length === 0) {
+      const insert = await pool.query(
+        `INSERT INTO users (email, username, role) VALUES ($1, $2, 'user') RETURNING user_id, email, username, role`,
+        [email, username]
+      );
+      user = insert;
+    }
+
+    const token = jwt.sign(
+      { userId: user.rows[0].user_id, role: user.rows[0].role },
+      process.env.JWT_SECRET,
+      { expiresIn: '7d' }
+    );
+
+    res.json({
+      userId: user.user_id,
+      email: user.email,
+      username: user.username,
+      role: user.role,
+      token,
+    });
+  } catch (err) {
+    console.error('Google login error:', err);
+    res.status(401).json({ error: 'Google authentication failed' });
+  }
+};
+
 module.exports = {
   register,
   login,
@@ -188,4 +237,5 @@ module.exports = {
   getCurrentUser,
   getAllUsers,
   changePassword,
+  googleLogin
 };

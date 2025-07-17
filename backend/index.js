@@ -1,6 +1,10 @@
 const path = require('path');
 require('dotenv').config();
 
+const session = require('cookie-session');
+const passport = require('passport');
+require('./middleware/passport');
+
 const express = require('express');
 const cors = require('cors');
 const helmet = require('helmet');
@@ -57,6 +61,13 @@ app.use('/api/checkout', checkoutRoutes);
 app.use('/api/users', userRoutes);
 app.use(logger);
 app.use(compression());
+
+app.use(session({
+  maxAge: 24 * 60 * 60 * 1000,
+  keys: [process.env.COOKIE_KEY || 'secret']
+}));
+app.use(passport.initialize());
+app.use(passport.session());
 // --- Fallbacks ---
 app.use(notFound);
 app.use(errorHandler);
