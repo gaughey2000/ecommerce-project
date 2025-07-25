@@ -9,6 +9,9 @@
     "lint": "eslint .",
     "preview": "vite preview"
   },
+  "jest": {
+  "globalTeardown": "./backend/tests/globalTeardown.js"
+},
   "dependencies": {
     "@tailwindcss/postcss": "^4.1.10",
     "@tailwindcss/vite": "^4.1.10",

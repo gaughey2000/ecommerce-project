@@ -7,8 +7,8 @@ const getProducts = async (req, res, next) => {
     const sql = query
       ? `SELECT product_id AS id, name, price, description, stock_quantity, image
          FROM products
-         WHERE name ILIKE $1 OR description ILIKE $1`
-      : `SELECT product_id AS id, name, price, description, stock_quantity, image FROM products`;
+         WHERE is_active = true AND (name ILIKE $1 OR description ILIKE $1)`
+      : `SELECT product_id AS id, name, price, description, stock_quantity, image FROM products WHERE is_active = true`;
 
     const params = query ? [`%${query}%`] : [];
     const result = await pool.query(sql, params);
@@ -82,13 +82,13 @@ const updateProduct = async (req, res, next) => {
     const result = await pool.query(
       `UPDATE products
        SET name = $1, price = $2, description = $3, stock_quantity = $4, image = $5
-       WHERE product_id = $6
+       WHERE product_id = $6 AND is_active = true
        RETURNING product_id AS id, name, price, description, stock_quantity, image`,
       [name, price, description || null, stock_quantity, image || null, id]
     );
 
     if (result.rows.length === 0) {
-      const error = new Error('Product not found');
+      const error = new Error('Product not found or is archived');
       error.status = 404;
       return next(error);
     }
@@ -113,7 +113,7 @@ const getProductById = async (req, res, next) => {
     const result = await pool.query(
       `SELECT product_id AS id, name, price, description, stock_quantity, image
        FROM products
-       WHERE product_id = $1`,
+       WHERE product_id = $1 AND is_active = true`,
       [id]
     );
 
@@ -130,7 +130,7 @@ const getProductById = async (req, res, next) => {
   }
 };
 
-// DELETE /products/:id
+// DELETE /products/:id (soft delete)
 const deleteProduct = async (req, res, next) => {
   const id = parseInt(req.params.id, 10);
   if (isNaN(id)) {
@@ -141,7 +141,7 @@ const deleteProduct = async (req, res, next) => {
 
   try {
     const result = await pool.query(
-      'DELETE FROM products WHERE product_id = $1 RETURNING product_id AS id',
+      'UPDATE products SET is_active = false WHERE product_id = $1 RETURNING product_id AS id',
       [id]
     );
 
@@ -151,7 +151,7 @@ const deleteProduct = async (req, res, next) => {
       return next(error);
     }
 
-    res.json({ message: 'Product deleted', id: result.rows[0].id });
+    res.json({ message: 'Product archived (soft-deleted)', id: result.rows[0].id });
   } catch (error) {
     error.status = 500;
     next(error);
