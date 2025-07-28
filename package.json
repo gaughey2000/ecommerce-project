@@ -6,7 +6,9 @@
     "dev": "nodemon index.js",
     "start": "NODE_ENV=production node index.js",
     "test": "jest",
-    "postinstall": "cd client && npm install && npm run build"
+    "postinstall": "cd client && npm install && npm run build",
+    "test:api": "bash scripts/dev-api-test.sh",
+    "test:backend": "jest --detectOpenHandles --forceExit"
   },
   "author": "",
   "license": "ISC",
