@@ -15,10 +15,10 @@ export default function UserPage() {
   useEffect(() => {
     const fetchData = async () => {
       try {
-        const resProfile = await authFetch('/users/me');
-        const resOrders = await authFetch('/orders');
-        if (resProfile.ok) setProfile(await resProfile.json());
-        if (resOrders.ok) setOrders(await resOrders.json());
+        const profileData = await authFetch('/users/me');
+        const ordersData = await authFetch('/orders');
+        setProfile(profileData);
+        setOrders(ordersData);
       } catch (err) {
         toast.error('Failed to load profile or orders');
       } finally {
@@ -34,13 +34,10 @@ export default function UserPage() {
   const updateProfile = async e => {
     e.preventDefault();
     try {
-      const res = await authFetch('/users/me', {
+      await authFetch('/users/me', {
         method: 'PATCH',
         body: JSON.stringify(profile),
-      });
-      const data = await res.json();
-      if (!res.ok) throw new Error(data.error);
-      toast.success('✅ Profile updated!');
+      }, true); // enable toast on success
     } catch (err) {
       toast.error('❌ Something went wrong updating your profile.');
     }
@@ -57,16 +54,25 @@ export default function UserPage() {
     }
 
     try {
-      const res = await authFetch('/auth/change-password', {
+      await authFetch('/auth/change-password', {
         method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ currentPassword: current, newPassword: newPw }),
-      });
-      const data = await res.json();
-      if (!res.ok) throw new Error(data.error);
-      toast.success('✅ Password updated!');
+      }, true); // enable toast on success
+
       setPasswordForm({ current: '', new: '', confirm: '' });
     } catch (err) {
-      toast.error('❌ Could not update password. Please try again.');
+      toast.error(`❌ ${err.message}`);
+    }
+  };
+
+  const deleteAccount = async () => {
+    if (!confirm('⚠️ This will permanently delete your account and order history. Continue?')) return;
+    try {
+      await authFetch('/users/me', { method: 'DELETE' }, true);
+      logout();
+    } catch (err) {
+      toast.error('Could not delete account');
     }
   };
 
@@ -96,16 +102,14 @@ export default function UserPage() {
               const formData = new FormData();
               formData.append('image', file);
 
-              const res = await authFetch('/users/me/image', { method: 'POST', body: formData });
-              if (res.ok) {
-                const updated = await res.json();
+              try {
+                const updated = await authFetch('/users/me/image', { method: 'POST', body: formData }, true);
                 setProfile(p => ({ ...p, profile_image: updated.profile_image }));
-                toast.success('✅ Profile image updated!');
-              } else {
+              } catch {
                 toast.error('❌ Image upload failed');
+              } finally {
+                URL.revokeObjectURL(objectUrl);
               }
-
-              return () => URL.revokeObjectURL(objectUrl);
             }}
           />
         </label>
@@ -193,16 +197,7 @@ export default function UserPage() {
 
       <section className="text-center">
         <button
-          onClick={async () => {
-            if (!confirm('⚠️ This will permanently delete your account and order history. Continue?')) return;
-            const res = await authFetch('/users/me', { method: 'DELETE' });
-            if (res.ok) {
-              toast.success('Account deleted');
-              logout();
-            } else {
-              toast.error('Could not delete account');
-            }
-          }}
+          onClick={deleteAccount}
           className="bg-red-600 hover:bg-red-700 text-white px-4 py-2 rounded"
         >
           Delete My Account

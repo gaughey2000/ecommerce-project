@@ -44,14 +44,18 @@ export default function AdminDashboardPage() {
   }
 
   async function deleteProduct(productId) {
-    if (!window.confirm('Delete this product?')) return;
+    if (!window.confirm('Archive this product?')) return;
     try {
-      await authFetch(`/admin/products/${productId}`, { method: 'DELETE' });
+      await authFetch(`/admin/products/${productId}`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ is_active: false }),
+      });
       fetchAdminData();
-      toast.success('Product deleted successfully');
+      toast.success('Product archived successfully');
     } catch (err) {
       console.error(err);
-      toast.error('Failed to delete product');
+      toast.error('Failed to archive product');
     }
   }
 

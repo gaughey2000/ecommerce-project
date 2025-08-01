@@ -1,7 +1,7 @@
 import { toast } from 'sonner';
 
 const API_BASE_URL = 'http://localhost:3000/api';
-console.log('Token being sent:', localStorage.getItem('token'));
+
 export const authFetch = async (endpoint, options = {}, showToast = false) => {
   const token = localStorage.getItem('token');
 
@@ -18,15 +18,22 @@ export const authFetch = async (endpoint, options = {}, showToast = false) => {
       headers,
     });
 
-    const data = await res.json();
+    const contentType = res.headers.get('content-type') || '';
+    const isJson = contentType.includes('application/json');
 
-    if (!res.ok) {
-      if (showToast) toast.error(data.error || 'Something went wrong');
-      throw new Error(data.error || 'Request failed');
+    let data = null;
+    if (isJson) {
+      data = await res.json();
     }
 
-    if (showToast) toast.success(data.message || 'Success');
-    return data;
+    if (!res.ok) {
+      if (showToast) toast.error(data?.error || 'Something went wrong');
+      throw new Error(data?.error || 'Request failed');
+    }
+
+    if (showToast && data?.message) toast.success(data.message);
+
+    return data ?? {}; // ✅ Always return an object
   } catch (err) {
     if (showToast) toast.error(err.message || 'Request failed');
     throw err;

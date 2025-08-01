@@ -87,6 +87,24 @@ exports.deleteProduct = async (req, res, next) => {
   }
 };
 
+// PATCH /admin/products/:id to archive instead of DELETE
+exports.archiveProduct = async (req, res, next) => {
+  const { id } = req.params;
+  try {
+    const result = await db.query(
+      `UPDATE products SET is_active = false WHERE product_id = $1 RETURNING *`,
+      [id]
+    );
+    if (result.rowCount === 0) {
+      return res.status(404).json({ error: 'Product not found' });
+    }
+    res.json({ message: 'Product archived successfully' });
+  } catch (err) {
+    err.status = 500;
+    next(err);
+  }
+};
+
 // POST create product
 exports.createProduct = async (req, res, next) => {
   const { name, description, price, stock_quantity, image } = req.body;

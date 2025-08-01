@@ -12,23 +12,28 @@ const {
   getMetrics,
   createProduct,
   deleteProduct,
-  getOrderItemsByOrderId
+  getOrderItemsByOrderId,
+  archiveProduct // <-- Add this line
 } = require('../controllers/adminController');
 
-// Protect all routes: must be authenticated and admin
 router.use(auth, requireRole('admin'));
 
-// Admin Routes
+// Users
 router.get('/users', getAllUsers);
 router.delete('/users/:id', deleteUser);
 
+// Products
 router.post('/products', createProduct);
 router.put('/products/:id', updateProduct);
-router.delete('/products/:id', deleteProduct);
+router.patch('/products/:id', archiveProduct); // <-- Add this line
+router.delete('/products/:id', deleteProduct);  // (optional, if you want hard delete)
 
+// Orders
 router.get('/orders', getAllOrders);
 router.patch('/orders/:id', updateOrderStatus);
 router.get('/orders/:id/items', getOrderItemsByOrderId);
 
-router.get('/metrics', getMetrics); // Fixed route path here (was /api/admin/metrics)
+// Metrics
+router.get('/metrics', getMetrics);
+
 module.exports = router;

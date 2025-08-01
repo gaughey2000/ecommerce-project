@@ -12,9 +12,7 @@ export default function OrderConfirmationPage() {
   useEffect(() => {
     const fetchOrder = async () => {
       try {
-        const res = await authFetch(`/orders/${orderId}`);
-        if (!res.ok) throw new Error('Failed to fetch order');
-        const data = await res.json();
+        const data = await authFetch(`/orders/${orderId}`);
         setOrder(data);
       } catch (err) {
         toast.error(err.message || 'Unable to load order.');

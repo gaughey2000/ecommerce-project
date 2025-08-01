@@ -31,7 +31,7 @@ export default function CartPage() {
         method: 'PATCH',
         body: JSON.stringify({ quantity }),
       });
-      await fetchCart();
+      await fetchCart(); // ✅ Refresh after update
       toast.success('Item updated');
     } catch (err) {
       toast.error(err.message);
@@ -41,13 +41,14 @@ export default function CartPage() {
   };
 
   const handleRemove = async (cartItemId) => {
+    console.log('Attempting to remove cart_item_id:', cartItemId); // ✅ Debug log
     setUpdating(true);
     try {
       await authFetch(`/cart/${cartItemId}`, { method: 'DELETE' });
-      setCart(prev => prev.filter(item => item.cart_item_id !== cartItemId));
+      await fetchCart(); // ✅ Force refresh
       toast.success('Item removed from cart');
     } catch (err) {
-      toast.error(err.message);
+      toast.error(err.message || 'Failed to remove item');
     } finally {
       setUpdating(false);
     }

@@ -70,28 +70,26 @@ const getOrderHistory = async (req, res, next) => {
   }
 };
 
-// Get one order by ID
+// Get one order by ID with aliased shipping fields
 const getOrderById = async (req, res, next) => {
   const { orderId } = req.params;
-  if (!/^[0-9]+$/.test(orderId)) {
-    const error = new Error('Invalid order ID');
-    error.status = 400;
-    return next(error);
-  }
+  const userId = req.user.userId;
 
   try {
     const result = await pool.query(
-      'SELECT * FROM orders WHERE order_id = $1',
-      [orderId]
+      `SELECT order_id, total_amount, status, created_at,
+              name AS shipping_name, email AS shipping_email, address AS shipping_address
+       FROM orders
+       WHERE order_id = $1 AND user_id = $2`,
+      [orderId, userId]
     );
-    if (result.rows.length === 0) {
-      const error = new Error('Order not found');
-      error.status = 404;
-      return next(error);
+
+    if (result.rowCount === 0) {
+      return res.status(404).json({ error: 'Order not found' });
     }
+
     res.json(result.rows[0]);
   } catch (err) {
-    err.status = 500;
     next(err);
   }
 };

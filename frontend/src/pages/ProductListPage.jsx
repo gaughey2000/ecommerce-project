@@ -13,40 +13,31 @@ export default function ProductListPage() {
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
-    const fetchProducts = async () => {
-      try {
-        const res = await authFetch('/products');
-        if (!res.ok) throw new Error('Failed to fetch products');
-        const data = await res.json();
-        setProducts(data);
-      } catch (err) {
-        toast.error(err.message || 'Could not load products');
-      } finally {
-        setLoading(false);
-      }
-    };
-
-    fetchProducts();
+    authFetch('/products')
+      .then(setProducts)
+      .catch(err => {
+        console.error('❌ Product fetch error:', err.message);
+        toast.error('Failed to fetch products');
+      })
+      .finally(() => setLoading(false));
   }, []);
 
   const handleAddToCart = async (productId) => {
     setLoadingId(productId);
     const product = products.find(p => p.id === productId);
-
+  
     if (!product || product.stock_quantity < 1) {
       toast.error('This product is out of stock');
       setLoadingId(null);
       return;
     }
-
+  
     try {
-      const res = await authFetch('/cart', {
+      await authFetch('/cart', {
         method: 'POST',
         body: JSON.stringify({ productId, quantity: 1 }),
       });
-      const data = await res.json();
-      if (!res.ok) throw new Error(data.error || 'Add to cart failed');
-
+  
       toast.success('✅ Added to cart!');
       setCartItems(prev => [...prev, productId]);
     } catch (err) {
