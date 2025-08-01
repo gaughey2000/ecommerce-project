@@ -1,34 +1,40 @@
-import { useState, useEffect, useContext } from 'react';
+import { useEffect, useState, useContext } from 'react';
 import { authFetch } from '../services/api';
 import { AuthContext } from '../context/AuthContext';
+import { toast } from 'sonner';
+import SkeletonCard from '../components/SkeletonCard';
 
 export default function ProductListPage() {
   const { user } = useContext(AuthContext);
   const [products, setProducts] = useState([]);
   const [search, setSearch] = useState('');
-  const [error, setError] = useState('');
-  const [success, setSuccess] = useState('');
   const [cartItems, setCartItems] = useState([]);
   const [loadingId, setLoadingId] = useState(null);
+  const [loading, setLoading] = useState(true);
 
   useEffect(() => {
-    authFetch('/products')
-      .then(res => {
+    const fetchProducts = async () => {
+      try {
+        const res = await authFetch('/products');
         if (!res.ok) throw new Error('Failed to fetch products');
-        return res.json();
-      })
-      .then(data => setProducts(data))
-      .catch(err => setError(err.message));
+        const data = await res.json();
+        setProducts(data);
+      } catch (err) {
+        toast.error(err.message || 'Could not load products');
+      } finally {
+        setLoading(false);
+      }
+    };
+
+    fetchProducts();
   }, []);
 
   const handleAddToCart = async (productId) => {
-    setError('');
-    setSuccess('');
     setLoadingId(productId);
-
     const product = products.find(p => p.id === productId);
+
     if (!product || product.stock_quantity < 1) {
-      setError('This product is out of stock');
+      toast.error('This product is out of stock');
       setLoadingId(null);
       return;
     }
@@ -41,11 +47,10 @@ export default function ProductListPage() {
       const data = await res.json();
       if (!res.ok) throw new Error(data.error || 'Add to cart failed');
 
-      setSuccess('Added to cart!');
+      toast.success('✅ Added to cart!');
       setCartItems(prev => [...prev, productId]);
-      setTimeout(() => setSuccess(''), 3000);
     } catch (err) {
-      setError(err.message);
+      toast.error(err.message || 'Could not add to cart');
     } finally {
       setLoadingId(null);
     }
@@ -67,13 +72,15 @@ export default function ProductListPage() {
         className="w-full p-3 mb-6 border border-gray-300 rounded shadow-sm"
       />
 
-      {error && <p className="text-red-500 mb-4 text-center text-sm">{error}</p>}
-      {success && <p className="text-green-600 mb-4 text-center text-sm">{success}</p>}
-
       <div className="grid gap-6 sm:grid-cols-2 md:grid-cols-3">
-        {filtered.length > 0 ? (
+        {loading ? (
+          [...Array(6)].map((_, i) => <SkeletonCard key={i} />)
+        ) : filtered.length > 0 ? (
           filtered.map(product => (
-            <div key={product.id} className="bg-white rounded-lg shadow p-4 flex flex-col justify-between">
+            <div
+              key={product.id}
+              className="bg-white rounded-lg shadow p-4 flex flex-col justify-between"
+            >
               <img
                 src={product.image ? `http://localhost:3000${product.image}` : '/placeholder.jpg'}
                 alt={product.name}
@@ -86,6 +93,7 @@ export default function ProductListPage() {
               <p className={`text-sm font-medium ${product.stock_quantity < 5 ? 'text-red-500' : 'text-gray-500'}`}>
                 {product.stock_quantity > 0 ? `${product.stock_quantity} in stock` : 'Out of stock'}
               </p>
+
               {user && (
                 product.stock_quantity > 0 ? (
                   <button
@@ -107,7 +115,7 @@ export default function ProductListPage() {
             </div>
           ))
         ) : (
-          <p className="text-center text-gray-600">No products found.</p>
+          <p className="text-center text-gray-600 col-span-full">No products found.</p>
         )}
       </div>
     </div>

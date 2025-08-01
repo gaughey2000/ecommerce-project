@@ -1,8 +1,7 @@
-// Responsive RegisterPage.jsx
-
 import { useState, useContext } from 'react';
 import { AuthContext } from '../context/AuthContext';
 import { useNavigate } from 'react-router-dom';
+import { toast } from 'sonner';
 
 export default function RegisterPage() {
   const { login } = useContext(AuthContext);
@@ -27,9 +26,11 @@ export default function RegisterPage() {
       const data = await res.json();
       if (!res.ok) throw new Error(data.error || 'Registration failed');
       login(data);
+      toast.success('Welcome! Your account was created.');
       navigate('/');
     } catch (err) {
       setError(err.message);
+      toast.error(err.message || 'Registration failed');
     }
   };
 

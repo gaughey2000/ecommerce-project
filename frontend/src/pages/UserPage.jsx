@@ -1,14 +1,15 @@
 import { useEffect, useState, useContext } from 'react';
 import { authFetch } from '../services/api';
 import { AuthContext } from '../context/AuthContext';
+import { toast } from 'sonner';
+import SkeletonCard from '../components/SkeletonCard';
 
 export default function UserPage() {
-  const { user, login, logout } = useContext(AuthContext);
+  const { user, logout } = useContext(AuthContext);
   const [profile, setProfile] = useState({ username: '', email: '' });
   const [passwordForm, setPasswordForm] = useState({ current: '', new: '', confirm: '' });
   const [orders, setOrders] = useState([]);
-  const [message, setMessage] = useState('');
-  const [pwMessage, setPwMessage] = useState('');
+  const [loadingOrders, setLoadingOrders] = useState(true);
   const [preview, setPreview] = useState(null);
 
   useEffect(() => {
@@ -19,7 +20,9 @@ export default function UserPage() {
         if (resProfile.ok) setProfile(await resProfile.json());
         if (resOrders.ok) setOrders(await resOrders.json());
       } catch (err) {
-        console.error(err);
+        toast.error('Failed to load profile or orders');
+      } finally {
+        setLoadingOrders(false);
       }
     };
     fetchData();
@@ -37,20 +40,21 @@ export default function UserPage() {
       });
       const data = await res.json();
       if (!res.ok) throw new Error(data.error);
-      setMessage('✅ Profile updated!');
+      toast.success('✅ Profile updated!');
     } catch (err) {
-      setMessage('❌ Something went wrong updating your profile.');
+      toast.error('❌ Something went wrong updating your profile.');
     }
   };
 
   const changePassword = async e => {
     e.preventDefault();
-    setPwMessage('');
-
     const { current, new: newPw, confirm } = passwordForm;
-    if (!current || !newPw || !confirm) return setPwMessage('All fields are required');
-    if (newPw !== confirm) return setPwMessage('New passwords do not match');
-    if (newPw.length < 8 || !/[A-Z]/.test(newPw) || !/\d/.test(newPw)) return setPwMessage('Weak password');
+
+    if (!current || !newPw || !confirm) return toast.error('All fields are required');
+    if (newPw !== confirm) return toast.error('New passwords do not match');
+    if (newPw.length < 8 || !/[A-Z]/.test(newPw) || !/\d/.test(newPw)) {
+      return toast.error('Password must be 8+ characters, with 1 uppercase & 1 number');
+    }
 
     try {
       const res = await authFetch('/auth/change-password', {
@@ -59,10 +63,10 @@ export default function UserPage() {
       });
       const data = await res.json();
       if (!res.ok) throw new Error(data.error);
-      setPwMessage('✅ Password updated!');
+      toast.success('✅ Password updated!');
       setPasswordForm({ current: '', new: '', confirm: '' });
     } catch (err) {
-      setPwMessage('❌ Could not update password. Please try again.');
+      toast.error('❌ Could not update password. Please try again.');
     }
   };
 
@@ -84,17 +88,23 @@ export default function UserPage() {
             hidden
             onChange={async e => {
               const file = e.target.files[0];
-              if (!file || !file.type.startsWith('image/')) return;
-              if (file.size > 2 * 1024 * 1024) return alert('Max 2MB');
+              if (!file || !file.type.startsWith('image/')) return toast.error('Not an image');
+              if (file.size > 2 * 1024 * 1024) return toast.error('Max file size is 2MB');
+
               const objectUrl = URL.createObjectURL(file);
               setPreview(objectUrl);
               const formData = new FormData();
               formData.append('image', file);
+
               const res = await authFetch('/users/me/image', { method: 'POST', body: formData });
               if (res.ok) {
                 const updated = await res.json();
                 setProfile(p => ({ ...p, profile_image: updated.profile_image }));
+                toast.success('✅ Profile image updated!');
+              } else {
+                toast.error('❌ Image upload failed');
               }
+
               return () => URL.revokeObjectURL(objectUrl);
             }}
           />
@@ -122,7 +132,6 @@ export default function UserPage() {
           <button type="submit" className="bg-blue-600 text-white px-4 py-2 rounded hover:bg-blue-700">
             Update Profile
           </button>
-          {message && <p className="text-sm mt-2 text-green-600">{message}</p>}
         </form>
       </section>
 
@@ -159,14 +168,15 @@ export default function UserPage() {
           <button type="submit" className="bg-indigo-600 text-white px-4 py-2 rounded hover:bg-indigo-700">
             Change Password
           </button>
-          {pwMessage && <p className="text-sm mt-2 text-green-600">{pwMessage}</p>}
         </form>
       </section>
 
       <section>
         <h2 className="text-2xl font-semibold mb-4">Order History</h2>
         <ul className="space-y-3">
-          {orders.length > 0 ? (
+          {loadingOrders ? (
+            Array.from({ length: 3 }).map((_, i) => <SkeletonCard key={i} />)
+          ) : orders.length > 0 ? (
             orders.map(order => (
               <li key={order.order_id} className="border rounded p-3 bg-white shadow-sm">
                 <div><strong>ID:</strong> {order.order_id}</div>
@@ -187,8 +197,10 @@ export default function UserPage() {
             if (!confirm('⚠️ This will permanently delete your account and order history. Continue?')) return;
             const res = await authFetch('/users/me', { method: 'DELETE' });
             if (res.ok) {
-              alert('Your account has been deleted.');
+              toast.success('Account deleted');
               logout();
+            } else {
+              toast.error('Could not delete account');
             }
           }}
           className="bg-red-600 hover:bg-red-700 text-white px-4 py-2 rounded"

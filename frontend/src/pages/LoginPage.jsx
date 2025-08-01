@@ -2,6 +2,7 @@ import { useState, useContext, useEffect } from 'react';
 import { AuthContext } from '../context/AuthContext';
 import { useNavigate } from 'react-router-dom';
 import { GoogleLogin } from '@react-oauth/google';
+import { toast } from 'sonner';
 
 export default function LoginPage() {
   const { login } = useContext(AuthContext);
@@ -9,12 +10,12 @@ export default function LoginPage() {
   const [password, setPassword] = useState('');
   const [error, setError] = useState('');
   const [loading, setLoading] = useState(false);
-  const [isClient, setIsClient] = useState(false); // ✅ fix Google SDK load issue
+  const [isClient, setIsClient] = useState(false);
 
   const navigate = useNavigate();
 
   useEffect(() => {
-    setIsClient(true); // ✅ ensure Google SDK is only used on client
+    setIsClient(true);
   }, []);
 
   const handleSubmit = async e => {
@@ -23,6 +24,7 @@ export default function LoginPage() {
 
     if (!email || !password) {
       setError('Email and password are required');
+      toast.error('Email and password are required');
       return;
     }
 
@@ -36,9 +38,10 @@ export default function LoginPage() {
       const data = await res.json();
       if (!res.ok) throw new Error(data.error || 'Login failed');
       login(data);
+      toast.success('Welcome back!');
       navigate('/');
     } catch (err) {
-      setError(err.message);
+      toast.error(err.message || 'Login failed');
     } finally {
       setLoading(false);
     }
@@ -55,14 +58,15 @@ export default function LoginPage() {
       const data = await res.json();
       if (!res.ok) throw new Error(data.error || 'Google login failed');
       login(data);
+      toast.success('Signed in with Google');
       navigate('/');
     } catch (err) {
-      setError(err.message);
+      toast.error(err.message || 'Google login failed');
     }
   };
 
   const handleGoogleError = () => {
-    setError('Google login was cancelled or failed');
+    toast.error('Google login was cancelled or failed');
   };
 
   return (
