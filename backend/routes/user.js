@@ -2,12 +2,12 @@ const express = require('express');
 const router = express.Router();
 const pool = require('../db');
 const authenticate = require('../middleware/auth');
-const { uploadProfileImage } = require('../controllers/uploadController');
-const multer = require('multer');
-const upload = multer({ dest: './uploads/' });
+const { uploadProfileImage, multerUpload } = require('../controllers/uploadController');
 
-router.post('/me/image', authenticate, upload.single('image'), uploadProfileImage);
-// PATCH /api/users/me
+// 🟢 Profile Image Upload Route
+router.post('/me/image', authenticate, multerUpload.single('image'), uploadProfileImage);
+
+// 🟢 Update User Details (PATCH)
 router.patch('/me', authenticate, async (req, res) => {
   const { username, email } = req.body;
 
@@ -33,31 +33,47 @@ router.patch('/me', authenticate, async (req, res) => {
 
   try {
     const result = await pool.query(
-      `UPDATE users SET ${updates.join(', ')} WHERE user_id = $${idx} RETURNING user_id, email, username`,
+      `UPDATE users SET ${updates.join(', ')} WHERE user_id = $${idx} RETURNING user_id, email, username, profile_image`,
       values
     );
 
-    res.json(result.rows[0]);
+    const user = result.rows[0];
+    if (user.profile_image) {
+      user.profile_image = `${process.env.BASE_URL || 'http://localhost:3000'}${user.profile_image}`;
+    }
+
+    res.json(user);
   } catch (err) {
     console.error('User update failed:', err);
     res.status(500).json({ error: 'User update failed' });
   }
 });
+
+// 🟢 Get Current User Details
 router.get('/me', authenticate, async (req, res) => {
   try {
     const result = await pool.query(
       'SELECT user_id, username, email, profile_image FROM users WHERE user_id = $1',
       [req.user.userId]
     );
+
     if (result.rows.length === 0) {
       return res.status(404).json({ error: 'User not found' });
     }
-    res.json(result.rows[0]);
+
+    const user = result.rows[0];
+    if (user.profile_image) {
+      user.profile_image = `${process.env.BASE_URL || 'http://localhost:3000'}${user.profile_image}`;
+    }
+
+    res.json(user);
   } catch (err) {
     console.error('Error fetching user:', err);
     res.status(500).json({ error: 'Failed to fetch user' });
   }
 });
+
+// 🟢 Delete User
 router.delete('/me', authenticate, async (req, res) => {
   try {
     const result = await pool.query(

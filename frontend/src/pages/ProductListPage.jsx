@@ -1,4 +1,5 @@
 import { useEffect, useState, useContext } from 'react';
+import ProductQuickView from '../components/ProductQuickView';
 import { authFetch } from '../services/api';
 import { AuthContext } from '../context/AuthContext';
 import { toast } from 'sonner';
@@ -11,6 +12,7 @@ export default function ProductListPage() {
   const [cartItems, setCartItems] = useState([]);
   const [loadingId, setLoadingId] = useState(null);
   const [loading, setLoading] = useState(true);
+  const [quickViewId, setQuickViewId] = useState(null);
 
   useEffect(() => {
     authFetch('/products')
@@ -25,19 +27,19 @@ export default function ProductListPage() {
   const handleAddToCart = async (productId) => {
     setLoadingId(productId);
     const product = products.find(p => p.id === productId);
-  
+
     if (!product || product.stock_quantity < 1) {
       toast.error('This product is out of stock');
       setLoadingId(null);
       return;
     }
-  
+
     try {
       await authFetch('/cart', {
         method: 'POST',
         body: JSON.stringify({ productId, quantity: 1 }),
       });
-  
+
       toast.success('✅ Added to cart!');
       setCartItems(prev => [...prev, productId]);
     } catch (err) {
@@ -70,10 +72,11 @@ export default function ProductListPage() {
           filtered.map(product => (
             <div
               key={product.id}
-              className="bg-white rounded-lg shadow p-4 flex flex-col justify-between"
+              onClick={() => setQuickViewId(product.id)}
+              className="bg-white rounded-lg shadow p-4 flex flex-col justify-between cursor-pointer hover:scale-[1.02] transition"
             >
               <img
-                src={product.image ? `http://localhost:3000${product.image}` : '/placeholder.jpg'}
+                src={product.image ? `${product.image}` : '/placeholder.jpg'}
                 alt={product.name}
                 className="w-full h-48 object-cover rounded mb-3"
                 onError={e => { e.currentTarget.src = '/placeholder.jpg'; }}
@@ -109,6 +112,10 @@ export default function ProductListPage() {
           <p className="text-center text-gray-600 col-span-full">No products found.</p>
         )}
       </div>
+      {quickViewId && (
+  <ProductQuickView productId={quickViewId} onClose={() => setQuickViewId(null)} />
+)}
     </div>
+    
   );
 }

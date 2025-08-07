@@ -21,7 +21,7 @@ import Layout from './components/Layout';
 export default function App() {
   return (
     <>
-      <Toaster position="top-center" richColors />
+      <Toaster position="bottom-right" richColors />
       <Routes>
         <Route element={<Layout />}>
           <Route path="/products" element={<ProductListPage />} />

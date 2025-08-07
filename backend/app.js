@@ -11,8 +11,6 @@ const logger = require('./middleware/logger');
 const notFound = require('./middleware/notFound');
 const errorHandler = require('./middleware/errorHandler');
 
-console.log('✅ JWT_SECRET Loaded:', process.env.JWT_SECRET);
-
 // Routes
 const authRoutes = require('./routes/authRoutes');
 const productRoutes = require('./routes/productRoutes');
@@ -49,8 +47,11 @@ app.use(express.json({ limit: '10kb' }));
 app.use(compression());
 app.use(logger);
 
+// 🟢 FIXED: Serve uploads with correct CORS headers
 app.use('/uploads', express.static('uploads', {
   setHeaders: (res, filePath) => {
+    res.setHeader('Access-Control-Allow-Origin', '*');
+    res.setHeader('Cross-Origin-Resource-Policy', 'cross-origin');
     if (!filePath.match(/\.(jpg|jpeg|png|webp)$/i)) {
       res.statusCode = 403;
       return res.end('Forbidden');

@@ -1,8 +1,8 @@
 const express = require('express');
-const { uploadProductImage } = require('../controllers/uploadController');
-
 const router = express.Router();
+const { multerUpload, uploadProductImage } = require('../controllers/uploadController');
 
-router.post('/products/image', uploadProductImage);
+
+router.post('/product', multerUpload.single('image'), uploadProductImage);
 
 module.exports = router;

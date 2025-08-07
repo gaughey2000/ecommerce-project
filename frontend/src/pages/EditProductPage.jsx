@@ -13,9 +13,9 @@ export default function EditProductPage() {
     description: '',
     price: '',
     stock_quantity: '',
-    image_url: ''
+    image: ''
   });
-  const [image, setImage] = useState(null);
+  const [imageFile, setImageFile] = useState(null);
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
@@ -37,34 +37,46 @@ export default function EditProductPage() {
 
   const handleSubmit = async e => {
     e.preventDefault();
+    setLoading(true);
 
     try {
       let imagePath = form.image;
 
-      if (image) {
-        if (!image.type.startsWith('image/')) return toast.error('Please upload a valid image file.');
-        if (image.size > 2 * 1024 * 1024) return toast.error('Image must be under 2MB.');
+      if (imageFile) {
+        if (!imageFile.type.startsWith('image/')) {
+          toast.error('Invalid image file');
+          setLoading(false);
+          return;
+        }
+
+        if (imageFile.size > 2 * 1024 * 1024) {
+          toast.error('Max image size 2MB');
+          setLoading(false);
+          return;
+        }
 
         const formData = new FormData();
-        formData.append('image', image);
+        formData.append('image', imageFile);
 
-        const uploadData = await authFetch('/uploads/product', {
+        const uploadRes = await authFetch('/uploads/product', {
           method: 'POST',
-          body: formData
+          body: formData,
         });
 
-        imagePath = uploadData.image;
+        imagePath = uploadRes.image;
       }
 
       await authFetch(`/admin/products/${id}`, {
         method: 'PUT',
         body: JSON.stringify({ ...form, image: imagePath }),
-      });
+      }, true);
 
       toast.success('✅ Product updated!');
       navigate('/admin');
     } catch (err) {
       toast.error(`❌ ${err.message}`);
+    } finally {
+      setLoading(false);
     }
   };
 
@@ -111,17 +123,24 @@ export default function EditProductPage() {
             className="w-full border p-2 rounded"
             required
           />
-          <input
-            type="file"
-            accept="image/*"
-            onChange={e => setImage(e.target.files[0])}
-            className="w-full"
-          />
+
+          <div>
+            {form.image && (
+              <img src={form.image} alt="Current Product" className="w-32 h-32 object-cover mb-2" />
+            )}
+            <input
+              type="file"
+              accept="image/*"
+              onChange={e => setImageFile(e.target.files[0])}
+              className="w-full"
+            />
+          </div>
+
           <button
             type="submit"
             className="w-full bg-green-600 hover:bg-green-700 text-white py-2 rounded"
           >
-            Update Product
+            {loading ? 'Saving...' : 'Update Product'}
           </button>
         </form>
       )}

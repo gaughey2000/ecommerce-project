@@ -6,7 +6,7 @@ import SkeletonCard from '../components/SkeletonCard';
 
 export default function UserPage() {
   const { user, logout } = useContext(AuthContext);
-  const [profile, setProfile] = useState({ username: '', email: '' });
+  const [profile, setProfile] = useState({ username: '', email: '', profile_image: '' });
   const [passwordForm, setPasswordForm] = useState({ current: '', new: '', confirm: '' });
   const [orders, setOrders] = useState([]);
   const [loadingOrders, setLoadingOrders] = useState(true);
@@ -37,9 +37,9 @@ export default function UserPage() {
       await authFetch('/users/me', {
         method: 'PATCH',
         body: JSON.stringify(profile),
-      }, true); // enable toast on success
-    } catch (err) {
-      toast.error('❌ Something went wrong updating your profile.');
+      }, true);
+    } catch {
+      toast.error('Something went wrong updating your profile.');
     }
   };
 
@@ -58,20 +58,40 @@ export default function UserPage() {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ currentPassword: current, newPassword: newPw }),
-      }, true); // enable toast on success
+      }, true);
 
       setPasswordForm({ current: '', new: '', confirm: '' });
     } catch (err) {
-      toast.error(`❌ ${err.message}`);
+      toast.error(`Error: ${err.message}`);
+    }
+  };
+
+  const handleImageUpload = async e => {
+    const file = e.target.files[0];
+    if (!file || !file.type.startsWith('image/')) return toast.error('Not an image');
+    if (file.size > 2 * 1024 * 1024) return toast.error('Max file size is 2MB');
+
+    const formData = new FormData();
+    formData.append('image', file);
+
+    try {
+      await authFetch('/users/me/image', { method: 'POST', body: formData }, true);
+      toast.success('Image uploaded successfully.');
+
+      const updatedProfile = await authFetch('/users/me');
+      setProfile(updatedProfile);
+      setPreview(null);
+    } catch {
+      toast.error('Image upload failed');
     }
   };
 
   const deleteAccount = async () => {
-    if (!confirm('⚠️ This will permanently delete your account and order history. Continue?')) return;
+    if (!confirm('This will permanently delete your account and order history. Continue?')) return;
     try {
       await authFetch('/users/me', { method: 'DELETE' }, true);
       logout();
-    } catch (err) {
+    } catch {
       toast.error('Could not delete account');
     }
   };
@@ -92,24 +112,10 @@ export default function UserPage() {
             type="file"
             accept="image/*"
             hidden
-            onChange={async e => {
+            onChange={e => {
               const file = e.target.files[0];
-              if (!file || !file.type.startsWith('image/')) return toast.error('Not an image');
-              if (file.size > 2 * 1024 * 1024) return toast.error('Max file size is 2MB');
-
-              const objectUrl = URL.createObjectURL(file);
-              setPreview(objectUrl);
-              const formData = new FormData();
-              formData.append('image', file);
-
-              try {
-                const updated = await authFetch('/users/me/image', { method: 'POST', body: formData }, true);
-                setProfile(p => ({ ...p, profile_image: updated.profile_image }));
-              } catch {
-                toast.error('❌ Image upload failed');
-              } finally {
-                URL.revokeObjectURL(objectUrl);
-              }
+              if (file) setPreview(URL.createObjectURL(file));
+              handleImageUpload(e);
             }}
           />
         </label>

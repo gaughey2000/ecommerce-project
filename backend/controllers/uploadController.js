@@ -22,45 +22,16 @@ const fileFilter = (req, file, cb) => {
   }
 };
 
-const upload = multer({
+const multerUpload = multer({
   storage,
   limits: { fileSize: maxSize },
   fileFilter
 });
 
-const handleMulterError = (err, req, res, next) => {
-  if (err instanceof multer.MulterError || err.message) {
-    err.status = 400;
-    return next(err);
-  }
-  next();
-};
-
-const uploadProductImage = [
-  upload.single('image'),
-  handleMulterError,
-  async (req, res, next) => {
-    if (!req.file) {
-      const error = new Error('No image file received');
-      error.status = 400;
-      return next(error);
-    }
-
-    try {
-      const imagePath = `/uploads/${req.file.filename}`;
-      res.json({ image: imagePath });
-    } catch (err) {
-      err.status = 500;
-      next(err);
-    }
-  }
-];
-
+// --- PROFILE IMAGE HANDLER ---
 const uploadProfileImage = async (req, res, next) => {
   if (!req.file) {
-    const error = new Error('No image file received');
-    error.status = 400;
-    return next(error);
+    return res.status(400).json({ error: 'No image file received' });
   }
 
   try {
@@ -71,13 +42,26 @@ const uploadProfileImage = async (req, res, next) => {
     );
     res.json({ profile_image: imagePath });
   } catch (err) {
-    err.status = 500;
+    next(err);
+  }
+};
+
+// --- PRODUCT IMAGE HANDLER ---
+const uploadProductImage = async (req, res, next) => {
+  if (!req.file) {
+    return res.status(400).json({ error: 'No image file received' });
+  }
+
+  try {
+    const imagePath = `/uploads/${req.file.filename}`;
+    res.json({ image: imagePath });
+  } catch (err) {
     next(err);
   }
 };
 
 module.exports = {
-  uploadProductImage,
+  multerUpload,
   uploadProfileImage,
-  handleMulterError
+  uploadProductImage
 };
