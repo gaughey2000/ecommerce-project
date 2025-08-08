@@ -4,7 +4,6 @@ import LoginPage from './pages/LoginPage';
 import ProductListPage from './pages/ProductListPage';
 import ProtectedRoute from './components/ProtectedRoute';
 import CartPage from './pages/CartPage';
-import CheckoutPage from './pages/CheckoutPage';
 import OrderConfirmationPage from './pages/OrderConfirmationPage';
 import OrderHistoryPage from './pages/OrderHistoryPage';
 import AdminRoute from './components/AdminRoute';
@@ -17,6 +16,7 @@ import UserPage from './pages/UserPage';
 import UnauthorizedPage from './pages/UnauthorizedPage';
 import NotFoundPage from './pages/NotFoundPage';
 import Layout from './components/Layout';
+import OrderSuccessPage from './pages/OrderSuccessPage'; // ✅ new import
 
 export default function App() {
   return (
@@ -34,18 +34,19 @@ export default function App() {
             }
           />
           <Route
-            path="/checkout"
-            element={
-              <ProtectedRoute>
-                <CheckoutPage />
-              </ProtectedRoute>
-            }
-          />
-          <Route
             path="/order-confirmation/:orderId"
             element={
               <ProtectedRoute>
                 <OrderConfirmationPage />
+              </ProtectedRoute>
+            }
+          />
+          {/* ✅ New Stripe success route */}
+          <Route
+            path="/order-success"
+            element={
+              <ProtectedRoute>
+                <OrderSuccessPage />
               </ProtectedRoute>
             }
           />

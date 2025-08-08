@@ -1,6 +1,6 @@
 import { useState, useContext } from 'react';
 import { AuthContext } from '../context/AuthContext';
-import { useNavigate } from 'react-router-dom';
+import { useNavigate, Link } from 'react-router-dom';
 import { toast } from 'sonner';
 
 export default function RegisterPage() {
@@ -74,6 +74,13 @@ export default function RegisterPage() {
         >
           Create Account
         </button>
+
+        <p className="text-sm mt-4 text-center">
+          Already have an account?{' '}
+          <Link to="/login" className="text-blue-600 hover:underline">
+            Log in
+          </Link>
+        </p>
       </form>
     </div>
   );

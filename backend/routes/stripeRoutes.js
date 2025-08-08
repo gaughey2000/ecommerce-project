@@ -6,7 +6,6 @@ const auth = require('../middleware/auth');
 
 router.post('/create-checkout-session', auth, async (req, res) => {
   try {
-    console.log('[Stripe] create-checkout-session hit');
     const { cartItems } = req.body;
 
     if (!Array.isArray(cartItems) || cartItems.length === 0) {
@@ -14,27 +13,17 @@ router.post('/create-checkout-session', auth, async (req, res) => {
     }
 
     const line_items = cartItems.map((item) => {
-      const name = String(item.name || '').trim();
-      if (!name) throw new Error('Cart item missing name');
-
-      const product_data = { name };
+      const product_data = { name: String(item.name || '').trim() };
       const desc = (item.description ?? '').toString().trim();
-      if (desc) product_data.description = desc; // only add if non-empty
-
-      const priceNumber = Number(item.price);
-      const quantityNumber = Number(item.quantity) || 1;
-
-      if (!Number.isFinite(priceNumber)) {
-        throw new Error(`Invalid price for item "${name}"`);
-      }
+      if (desc) product_data.description = desc; // ✅ only add if non-empty
 
       return {
         price_data: {
           currency: 'gbp',
           product_data,
-          unit_amount: Math.round(priceNumber * 100),
+          unit_amount: Math.round(Number(item.price) * 100), // in pence
         },
-        quantity: quantityNumber,
+        quantity: Number(item.quantity) || 1,
       };
     });
 
@@ -49,11 +38,7 @@ router.post('/create-checkout-session', auth, async (req, res) => {
     return res.json({ url: session.url });
   } catch (err) {
     console.error('❌ Stripe session error:', err);
-    // In dev, bubble a hint back so you see it in the browser
-    return res.status(500).json({
-      error: 'Failed to create Stripe session',
-      hint: process.env.NODE_ENV !== 'production' ? err.message : undefined,
-    });
+    return res.status(500).json({ error: 'Failed to create Stripe session' });
   }
 });
 

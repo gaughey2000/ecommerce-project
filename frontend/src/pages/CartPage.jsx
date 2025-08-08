@@ -31,7 +31,7 @@ export default function CartPage() {
         method: 'PATCH',
         body: JSON.stringify({ quantity }),
       });
-      await fetchCart(); // ✅ Refresh after update
+      await fetchCart();
       toast.success('Item updated');
     } catch (err) {
       toast.error(err.message);
@@ -41,16 +41,33 @@ export default function CartPage() {
   };
 
   const handleRemove = async (cartItemId) => {
-    console.log('Attempting to remove cart_item_id:', cartItemId); // ✅ Debug log
     setUpdating(true);
     try {
       await authFetch(`/cart/${cartItemId}`, { method: 'DELETE' });
-      await fetchCart(); // ✅ Force refresh
+      await fetchCart();
       toast.success('Item removed from cart');
     } catch (err) {
       toast.error(err.message || 'Failed to remove item');
     } finally {
       setUpdating(false);
+    }
+  };
+
+  const handleCheckout = async () => {
+    try {
+      const res = await authFetch('/checkout/create-checkout-session', {
+        method: 'POST',
+        body: JSON.stringify({ cartItems: cart }),
+      });
+  
+      if (res?.url) {
+        window.location.href = res.url;
+      } else {
+        console.error('Stripe session response:', res);
+        toast.error(res?.hint || 'Stripe session failed');
+      }
+    } catch (err) {
+      toast.error(err.message || 'Checkout failed');
     }
   };
 
@@ -120,12 +137,12 @@ export default function CartPage() {
       {!loading && cart.length > 0 && (
         <div className="mt-6 text-right">
           <p className="text-xl font-semibold">Total: £{total.toFixed(2)}</p>
-          <a
-            href="/checkout"
+          <button
+            onClick={handleCheckout}
             className="inline-block mt-4 bg-blue-600 hover:bg-blue-700 text-white px-5 py-2 rounded"
           >
-            Proceed to Checkout
-          </a>
+            Pay with Stripe
+          </button>
         </div>
       )}
     </div>
