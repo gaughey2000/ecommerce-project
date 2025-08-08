@@ -4,7 +4,6 @@ import LoginPage from './pages/LoginPage';
 import ProductListPage from './pages/ProductListPage';
 import ProtectedRoute from './components/ProtectedRoute';
 import CartPage from './pages/CartPage';
-import OrderConfirmationPage from './pages/OrderConfirmationPage';
 import OrderHistoryPage from './pages/OrderHistoryPage';
 import AdminRoute from './components/AdminRoute';
 import AdminDashboardPage from './pages/AdminDashboardPage';
@@ -33,15 +32,6 @@ export default function App() {
               </ProtectedRoute>
             }
           />
-          <Route
-            path="/order-confirmation/:orderId"
-            element={
-              <ProtectedRoute>
-                <OrderConfirmationPage />
-              </ProtectedRoute>
-            }
-          />
-          {/* ✅ New Stripe success route */}
           <Route
             path="/order-success"
             element={
