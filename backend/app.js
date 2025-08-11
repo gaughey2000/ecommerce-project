@@ -1,4 +1,3 @@
-// backend/app.js
 const path = require('path');
 require('dotenv').config({ path: path.join(__dirname, '.env') });
 
@@ -31,15 +30,14 @@ const app = express();
 app.set('trust proxy', 1);
 app.disable('x-powered-by');
 
-// --- Security middleware
+// Security
 app.use(
   helmet({
-    // Swagger UI can break with strict CSP; keep default helmet (no CSP)
     crossOriginResourcePolicy: { policy: 'cross-origin' },
   })
 );
 
-// --- CORS
+// CORS
 const DEFAULT_ORIGIN = process.env.CORS_ORIGIN || process.env.FRONTEND_URL || 'http://localhost:5173';
 const ALLOWLIST = (process.env.CORS_ALLOWLIST || DEFAULT_ORIGIN)
   .split(',')
@@ -49,8 +47,9 @@ const ALLOWLIST = (process.env.CORS_ALLOWLIST || DEFAULT_ORIGIN)
 app.use(
   cors({
     origin: (origin, cb) => {
-      if (!origin) return cb(null, true); // curl/postman
-      return cb(null, ALLOWLIST.includes(origin));
+      if (!origin) return cb(null, true);
+      if (ALLOWLIST.includes(origin)) return cb(null, true);
+      return cb(new Error(`CORS: Origin ${origin} not allowed`), false);
     },
     credentials: true,
     allowedHeaders: ['Content-Type', 'Authorization'],
@@ -59,20 +58,24 @@ app.use(
   })
 );
 
-// --- Body parsing & compression
-app.use(express.json({ limit: '100kb' }));
+// Stripe webhook requires raw body BEFORE json()
+app.use('/api/checkout/webhook', express.raw({ type: 'application/json' }));
+
+// Core middleware
 app.use(compression());
+app.use(express.json({ limit: '100kb' }));
 app.use(logger);
 
-// --- Serve uploads safely (images only)
+// Serve uploads (images only) with cache
 const imageAllowlist = /\.(?:jpg|jpeg|png|webp|gif|avif)$/i;
 app.use('/uploads', (req, res, next) => {
   if (!imageAllowlist.test(req.path)) return res.status(403).send('Forbidden');
+  res.setHeader('Cache-Control', 'public, max-age=31536000, immutable');
   next();
 });
 app.use('/uploads', express.static(path.join(__dirname, 'uploads')));
 
-// --- Sessions & Passport (only if you still need sessions for OAuth)
+// Sessions & Passport (if needed)
 app.use(
   session({
     name: 'sid',
@@ -86,7 +89,7 @@ app.use(
 app.use(passport.initialize());
 app.use(passport.session());
 
-// --- Routes
+// Routes
 app.use('/api/auth', authRoutes);
 app.use('/api/products', productRoutes);
 app.use('/api/cart', cartRoutes);
@@ -96,10 +99,10 @@ app.use('/api/uploads', uploadRoutes);
 app.use('/api/checkout', checkoutRoutes);
 app.use('/api/users', userRoutes);
 
-// --- Docs
+// Swagger docs
 app.use('/api/docs', swaggerUi.serve, swaggerUi.setup(swaggerDocument));
 
-// --- Final middleware
+// Final middleware
 app.use(notFound);
 app.use(errorHandler);
 

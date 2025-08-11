@@ -433,6 +433,42 @@
           }
         }
       },
+      "/api/orders/by-session/{sessionId}": {
+  "get": {
+    "tags": ["Orders"],
+    "summary": "Get order by Stripe Checkout session id",
+    "security": [{ "bearerAuth": [] }],
+    "parameters": [
+      { "name": "sessionId", "in": "path", "required": true, "schema": { "type": "string" } }
+    ],
+    "responses": {
+      "200": {
+        "description": "OK",
+        "content": {
+          "application/json": {
+            "schema": {
+              "type": "object",
+              "properties": {
+                "order_id": { "type": "integer" },
+                "user_id": { "type": "integer" },
+                "total_amount": { "type": "number", "format": "float" },
+                "status": { "type": "string", "example": "paid" },
+                "created_at": { "type": "string", "format": "date-time" },
+                "shipping_name": { "type": "string", "nullable": true },
+                "shipping_email": { "type": "string", "nullable": true },
+                "shipping_address": { "type": "string", "nullable": true },
+                "stripe_session_id": { "type": "string" },
+                "stripe_payment_intent": { "type": "string" }
+              }
+            }
+          }
+        }
+      },
+      "404": { "description": "Not found" },
+      "401": { "description": "Unauthorized" }
+    }
+  }
+},
   
       "/api/checkout/create-checkout-session": {
         "post": {
