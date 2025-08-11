@@ -15,7 +15,7 @@ import UserPage from './pages/UserPage';
 import UnauthorizedPage from './pages/UnauthorizedPage';
 import NotFoundPage from './pages/NotFoundPage';
 import Layout from './components/Layout';
-import OrderSuccessPage from './pages/OrderSuccessPage'; // ✅ new import
+import OrderSuccessPage from './pages/OrderSuccessPage';
 
 export default function App() {
   return (
@@ -90,7 +90,7 @@ export default function App() {
           />
         </Route>
 
-        {/* Outside layout (no nav) */}
+        {/* Outside layout (no nav/footer) */}
         <Route path="/login" element={<LoginPage />} />
         <Route path="/register" element={<RegisterPage />} />
         <Route path="/unauthorized" element={<UnauthorizedPage />} />

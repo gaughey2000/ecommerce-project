@@ -8,10 +8,11 @@ router.get('/', auth, async (req, res) => {
   try {
     const userId = req.user.userId;
     const result = await pool.query(
-      `SELECT ci.cart_item_id, ci.quantity, p.product_id, p.name, p.price
-       FROM cart_items ci
-       JOIN products p ON ci.product_id = p.product_id
-       WHERE ci.user_id = $1`,
+      `SELECT ci.cart_item_id, ci.quantity, p.product_id, p.name,
+              COALESCE(p.price, p.unit_amount/100.0) AS price
+      FROM cart_items ci
+      JOIN products p ON ci.product_id = p.product_id
+      WHERE ci.user_id = $1`,
       [userId]
     );
     res.json(result.rows);

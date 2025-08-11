@@ -3,9 +3,18 @@ const jwt = require('jsonwebtoken');
 const { validationResult } = require('express-validator');
 const bcrypt = require('bcrypt');
 const { OAuth2Client } = require('google-auth-library');
-const client = new OAuth2Client(process.env.GOOGLE_CLIENT_ID);
 
+const client = new OAuth2Client(process.env.GOOGLE_CLIENT_ID);
+const SALT_ROUNDS = 10;
+
+// Helper: sign JWT in a consistent way
+function signToken(payload) {
+  return jwt.sign(payload, process.env.JWT_SECRET, { expiresIn: '7d' });
+}
+
+// POST /api/auth/register
 const register = async (req, res, next) => {
+  // express-validator results (username, email, password rules handled in middleware)
   const errors = validationResult(req);
   if (!errors.isEmpty()) {
     return res.status(400).json({ error: errors.array()[0].msg });
@@ -14,6 +23,7 @@ const register = async (req, res, next) => {
   const { email, password, username } = req.body;
 
   try {
+    // unique email/username
     const existing = await pool.query(
       'SELECT user_id FROM users WHERE email = $1 OR username = $2',
       [email, username]
@@ -22,24 +32,24 @@ const register = async (req, res, next) => {
       return res.status(409).json({ error: 'Email or username already in use' });
     }
 
-    const hashedPassword = await bcrypt.hash(password, 10);
+    const hashedPassword = await bcrypt.hash(password, SALT_ROUNDS);
 
     const result = await pool.query(
-      'INSERT INTO users (email, password, username) VALUES ($1, $2, $3) RETURNING user_id, email, username',
+      `INSERT INTO users (email, password, username, role)
+       VALUES ($1, $2, $3, 'user')
+       RETURNING user_id, email, username, role`,
       [email, hashedPassword, username]
     );
 
     const user = result.rows[0];
-    const token = jwt.sign(
-      { userId: user.user_id, role: 'user' },
-      process.env.JWT_SECRET,
-      { expiresIn: '7d' }
-    );
+
+    const token = signToken({ userId: user.user_id, role: user.role });
 
     res.status(201).json({
       userId: user.user_id,
       email: user.email,
       username: user.username,
+      role: user.role,
       token,
     });
   } catch (error) {
@@ -47,6 +57,7 @@ const register = async (req, res, next) => {
   }
 };
 
+// POST /api/auth/login
 const login = async (req, res, next) => {
   const { email, password } = req.body;
 
@@ -55,23 +66,17 @@ const login = async (req, res, next) => {
       'SELECT user_id, email, username, role, password FROM users WHERE email = $1',
       [email]
     );
-
     if (result.rows.length === 0) {
       return res.status(401).json({ error: 'Invalid credentials' });
     }
 
     const user = result.rows[0];
     const isMatch = await bcrypt.compare(password, user.password);
-
     if (!isMatch) {
       return res.status(401).json({ error: 'Invalid credentials' });
     }
 
-    const token = jwt.sign(
-      { userId: user.user_id, role: user.role },
-      process.env.JWT_SECRET,
-      { expiresIn: '7d' }
-    );
+    const token = signToken({ userId: user.user_id, role: user.role });
 
     res.json({
       userId: user.user_id,
@@ -85,11 +90,23 @@ const login = async (req, res, next) => {
   }
 };
 
+// POST /api/auth/change-password
 const changePassword = async (req, res, next) => {
   const { currentPassword, newPassword } = req.body;
 
   if (!currentPassword || !newPassword) {
     return res.status(400).json({ error: 'Both current and new password are required.' });
+  }
+
+  // Basic strength checks (aligns with registration rules)
+  if (
+    newPassword.length < 8 ||
+    !/[A-Z]/.test(newPassword) ||
+    !/\d/.test(newPassword)
+  ) {
+    return res.status(400).json({
+      error: 'New password must be 8+ chars and include 1 uppercase & 1 number.',
+    });
   }
 
   try {
@@ -109,24 +126,24 @@ const changePassword = async (req, res, next) => {
       return res.status(401).json({ error: 'Current password is incorrect.' });
     }
 
-    const hashedNew = await bcrypt.hash(newPassword, 10);
+    const hashedNew = await bcrypt.hash(newPassword, SALT_ROUNDS);
     await pool.query(
       'UPDATE users SET password = $1 WHERE user_id = $2',
       [hashedNew, req.user.userId]
     );
 
-    return res.json({ message: 'Password updated successfully.' });
-
+    res.json({ message: 'Password updated successfully.' });
   } catch (error) {
     next(error);
   }
 };
 
+// DELETE /api/auth/users/:userId  (admin-only route in router)
 const deleteUser = async (req, res, next) => {
   const { userId } = req.params;
 
   try {
-    if (parseInt(userId) === req.user.userId) {
+    if (parseInt(userId, 10) === req.user.userId) {
       return res.status(400).json({ error: 'Cannot delete your own account' });
     }
 
@@ -137,7 +154,10 @@ const deleteUser = async (req, res, next) => {
     );
     await pool.query('DELETE FROM orders WHERE user_id = $1', [userId]);
 
-    const result = await pool.query('DELETE FROM users WHERE user_id = $1 RETURNING user_id', [userId]);
+    const result = await pool.query(
+      'DELETE FROM users WHERE user_id = $1 RETURNING user_id',
+      [userId]
+    );
 
     if (result.rowCount === 0) {
       return res.status(404).json({ error: 'User not found' });
@@ -149,10 +169,11 @@ const deleteUser = async (req, res, next) => {
   }
 };
 
+// GET /api/auth/me
 const getCurrentUser = async (req, res, next) => {
   try {
     const result = await pool.query(
-      'SELECT user_id, email, username, is_admin FROM users WHERE user_id = $1',
+      'SELECT user_id, email, username, role FROM users WHERE user_id = $1',
       [req.user.userId]
     );
 
@@ -166,15 +187,17 @@ const getCurrentUser = async (req, res, next) => {
   }
 };
 
+// GET /api/auth/users (admin)
 const getAllUsers = async (req, res, next) => {
   try {
-    const result = await pool.query('SELECT user_id, email, is_admin FROM users');
+    const result = await pool.query('SELECT user_id, email, username, role FROM users');
     res.json(result.rows);
   } catch (error) {
     next(error);
   }
 };
 
+// POST /api/auth/google
 const googleLogin = async (req, res, next) => {
   const { credential } = req.body;
   if (!credential) {
@@ -184,37 +207,41 @@ const googleLogin = async (req, res, next) => {
   try {
     const ticket = await client.verifyIdToken({
       idToken: credential,
-      audience: process.env.GOOGLE_CLIENT_ID
+      audience: process.env.GOOGLE_CLIENT_ID,
     });
 
     const payload = ticket.getPayload();
     const email = payload.email;
     const username = payload.name || email.split('@')[0];
 
-    let user = await pool.query('SELECT user_id, email, username, role FROM users WHERE email = $1', [email]);
 
-    if (user.rows.length === 0) {
-      const insert = await pool.query(
-        `INSERT INTO users (email, username, role) VALUES ($1, $2, 'user') RETURNING user_id, email, username, role`,
-        [email, username]
-      );
-      user = insert;
-    }
-
-    const token = jwt.sign(
-      { userId: user.rows[0].user_id, role: user.rows[0].role },
-      process.env.JWT_SECRET,
-      { expiresIn: '7d' }
+    let query = await pool.query(
+      'SELECT user_id, email, username, role FROM users WHERE email = $1',
+      [email]
     );
 
+    if (query.rows.length === 0) {
+      const insert = await pool.query(
+        `INSERT INTO users (email, username, role)
+         VALUES ($1, $2, 'user')
+         RETURNING user_id, email, username, role`,
+        [email, username]
+      );
+      query = insert;
+    }
+
+    const u = query.rows[0];
+    const token = signToken({ userId: u.user_id, role: u.role });
+
     res.json({
-      userId: user.rows[0].user_id,
-      email: user.rows[0].email,
-      username: user.rows[0].username,
-      role: user.rows[0].role,
+      userId: u.user_id,
+      email: u.email,
+      username: u.username,
+      role: u.role,
       token,
     });
   } catch (err) {
+    console.error('Google login error:', err);
     next(new Error('Google authentication failed'));
   }
 };
@@ -226,5 +253,5 @@ module.exports = {
   deleteUser,
   getCurrentUser,
   getAllUsers,
-  googleLogin
+  googleLogin,
 };

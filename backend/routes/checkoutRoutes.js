@@ -1,60 +1,9 @@
 // backend/routes/checkoutRoutes.js
 const express = require('express');
 const router = express.Router();
-const stripe = require('stripe')(process.env.STRIPE_SECRET_KEY);
 const auth = require('../middleware/auth');
+const { createCheckoutSession } = require('../controllers/checkoutController');
 
-router.post('/create-checkout-session', auth, async (req, res) => {
-  try {
-    console.log('[Stripe] create-checkout-session hit');
-    const { cartItems } = req.body;
-
-    if (!Array.isArray(cartItems) || cartItems.length === 0) {
-      return res.status(400).json({ error: 'Cart is empty' });
-    }
-
-    const line_items = cartItems.map((item) => {
-      const name = String(item.name || '').trim();
-      if (!name) throw new Error('Cart item missing name');
-
-      const product_data = { name };
-      const desc = (item.description ?? '').toString().trim();
-      if (desc) product_data.description = desc; // only add if non-empty
-
-      const priceNumber = Number(item.price);
-      const quantityNumber = Number(item.quantity) || 1;
-
-      if (!Number.isFinite(priceNumber)) {
-        throw new Error(`Invalid price for item "${name}"`);
-      }
-
-      return {
-        price_data: {
-          currency: 'gbp',
-          product_data,
-          unit_amount: Math.round(priceNumber * 100),
-        },
-        quantity: quantityNumber,
-      };
-    });
-
-    const session = await stripe.checkout.sessions.create({
-      payment_method_types: ['card'],
-      mode: 'payment',
-      line_items,
-      success_url: `${process.env.CORS_ORIGIN}/order-success`,
-      cancel_url: `${process.env.CORS_ORIGIN}/cart`,
-    });
-
-    return res.json({ url: session.url });
-  } catch (err) {
-    console.error('❌ Stripe session error:', err);
-    // In dev, bubble a hint back so you see it in the browser
-    return res.status(500).json({
-      error: 'Failed to create Stripe session',
-      hint: process.env.NODE_ENV !== 'production' ? err.message : undefined,
-    });
-  }
-});
+router.post('/create-checkout-session', auth, createCheckoutSession);
 
 module.exports = router;

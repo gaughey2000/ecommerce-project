@@ -1,14 +1,27 @@
 const pool = require('../db');
 
+// Helpers to map legacy price <-> unit_amount
+const toUnitAmount = (price) => Math.round(Number(price) * 100);
+const toPrice = (unit_amount) => Number(unit_amount) / 100;
+
 // GET /products?query=...
 const getProducts = async (req, res, next) => {
   const { query } = req.query;
   try {
+    // Return both unit_amount/currency and keep price for backward compatibility
     const sql = query
-      ? `SELECT product_id AS id, name, price, description, stock_quantity, image
+      ? `SELECT product_id AS id, name, description, stock_quantity, image,
+                COALESCE(unit_amount, ROUND(price * 100)) AS unit_amount,
+                COALESCE(currency, 'GBP') AS currency,
+                COALESCE(price, COALESCE(unit_amount,0)/100.0) AS price
          FROM products
          WHERE is_active = true AND (name ILIKE $1 OR description ILIKE $1)`
-      : `SELECT product_id AS id, name, price, description, stock_quantity, image FROM products WHERE is_active = true`;
+      : `SELECT product_id AS id, name, description, stock_quantity, image,
+                COALESCE(unit_amount, ROUND(price * 100)) AS unit_amount,
+                COALESCE(currency, 'GBP') AS currency,
+                COALESCE(price, COALESCE(unit_amount,0)/100.0) AS price
+         FROM products
+         WHERE is_active = true`;
 
     const params = query ? [`%${query}%`] : [];
     const result = await pool.query(sql, params);
@@ -21,32 +34,32 @@ const getProducts = async (req, res, next) => {
 
 // POST /products
 const addProduct = async (req, res, next) => {
-  const { name, price, description, stock_quantity, image } = req.body;
+  // accept either unit_amount(+currency) or legacy price
+  const { name, unit_amount, currency, price, description, stock_quantity, image } = req.body;
 
-  if (!name || price == null || stock_quantity == null) {
-    const error = new Error('Name, price, and stock quantity are required');
+  if (!name || (unit_amount == null && price == null) || stock_quantity == null) {
+    const error = new Error('Name, unit_amount/price, and stock quantity are required');
     error.status = 400;
     return next(error);
   }
 
-  if (Number(price) <= 0) {
-    const error = new Error('Price must be greater than 0');
+  const ua = Number.isInteger(unit_amount) ? unit_amount : toUnitAmount(price);
+  if (!Number.isInteger(ua) || ua <= 0) {
+    const error = new Error('unit_amount must be a positive integer (minor units)');
     error.status = 400;
     return next(error);
   }
 
-  if (Number(stock_quantity) < 0) {
-    const error = new Error('Stock quantity cannot be negative');
-    error.status = 400;
-    return next(error);
-  }
+  const curr = (currency || 'GBP').toUpperCase();
 
   try {
     const result = await pool.query(
-      `INSERT INTO products (name, price, description, stock_quantity, image)
-       VALUES ($1, $2, $3, $4, $5)
-       RETURNING product_id AS id, name, price, description, stock_quantity, image`,
-      [name, price, description || null, stock_quantity, image || null]
+      `INSERT INTO products (name, description, unit_amount, currency, price, stock_quantity, image, is_active)
+       VALUES ($1, $2, $3, $4, $5, $6, $7, true)
+       RETURNING product_id AS id, name, description, stock_quantity, image,
+                 unit_amount, currency,
+                 COALESCE(price, unit_amount/100.0) AS price`,
+      [name, description || null, ua, curr, price ?? null, stock_quantity, image || null]
     );
     res.status(201).json(result.rows[0]);
   } catch (error) {
@@ -58,33 +71,33 @@ const addProduct = async (req, res, next) => {
 // PATCH /products/:id
 const updateProduct = async (req, res, next) => {
   const { id } = req.params;
-  const { name, price, description, stock_quantity, image } = req.body;
+  const { name, unit_amount, currency, price, description, stock_quantity, image } = req.body;
 
-  if (!name || price == null || stock_quantity == null) {
+  if (!name || (unit_amount == null && price == null) || stock_quantity == null) {
     const error = new Error('All fields are required');
     error.status = 400;
     return next(error);
   }
 
-  if (Number(price) <= 0) {
-    const error = new Error('Price must be greater than 0');
+  const ua = Number.isInteger(unit_amount) ? unit_amount : toUnitAmount(price);
+  if (!Number.isInteger(ua) || ua <= 0) {
+    const error = new Error('unit_amount must be a positive integer (minor units)');
     error.status = 400;
     return next(error);
   }
 
-  if (Number(stock_quantity) < 0) {
-    const error = new Error('Stock quantity cannot be negative');
-    error.status = 400;
-    return next(error);
-  }
+  const curr = (currency || 'GBP').toUpperCase();
 
   try {
     const result = await pool.query(
       `UPDATE products
-       SET name = $1, price = $2, description = $3, stock_quantity = $4, image = $5
-       WHERE product_id = $6 AND is_active = true
-       RETURNING product_id AS id, name, price, description, stock_quantity, image`,
-      [name, price, description || null, stock_quantity, image || null, id]
+       SET name = $1, description = $2, unit_amount = $3, currency = $4, price = $5,
+           stock_quantity = $6, image = $7
+       WHERE product_id = $8 AND is_active = true
+       RETURNING product_id AS id, name, description, stock_quantity, image,
+                 unit_amount, currency,
+                 COALESCE(price, unit_amount/100.0) AS price`,
+      [name, description || null, ua, curr, price ?? null, stock_quantity, image || null, id]
     );
 
     if (result.rows.length === 0) {
@@ -111,7 +124,10 @@ const getProductById = async (req, res, next) => {
 
   try {
     const result = await pool.query(
-      `SELECT product_id AS id, name, price, description, stock_quantity, image
+      `SELECT product_id AS id, name, description, stock_quantity, image,
+              COALESCE(unit_amount, ROUND(price * 100)) AS unit_amount,
+              COALESCE(currency, 'GBP') AS currency,
+              COALESCE(price, COALESCE(unit_amount,0)/100.0) AS price
        FROM products
        WHERE product_id = $1 AND is_active = true`,
       [id]
@@ -158,10 +174,4 @@ const deleteProduct = async (req, res, next) => {
   }
 };
 
-module.exports = {
-  getProducts,
-  addProduct,
-  updateProduct,
-  getProductById,
-  deleteProduct
-};
+module.exports = { getProducts, addProduct, updateProduct, getProductById, deleteProduct };

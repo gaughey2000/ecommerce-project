@@ -1,54 +1,51 @@
+// backend/routes/authRoutes.js
 const express = require('express');
 const router = express.Router();
-const passport = require('passport'); // 👈 for Google OAuth
+
+const auth = require('../middleware/auth');
+const requireRole = require('../middleware/requireRole');
 
 const {
   register,
   login,
+  changePassword,
   deleteUser,
   getCurrentUser,
   getAllUsers,
-  changePassword
+  googleLogin,
 } = require('../controllers/authController');
 
-const auth = require('../middleware/auth');
-const requireRole = require('../middleware/requireRole');
+// (optional) rate limiter + validation middleware
+// If you don’t have these, you can safely remove them.
 const { authLimiter } = require('../middleware/rateLimit');
 const { registerValidation, loginValidation } = require('../middleware/validation/authValidation');
 const { validate } = require('../middleware/validation/validate');
-const jwt = require('jsonwebtoken');
-const { googleLogin } = require('../controllers/authController');
 
+// ------------------- Auth (public) -------------------
 
-// Auth routes
+// Register
 router.post('/register', registerValidation, validate, authLimiter, register);
-router.post('/login', loginValidation, validate, authLimiter, login);
-router.post('/google', googleLogin);
-// Admin-only
-router.delete('/users/:userId', auth, requireRole('admin'), deleteUser);
-router.get('/users', auth, requireRole('admin'), getAllUsers);
 
-// User-only
+// Email/password login
+router.post('/login', loginValidation, validate, authLimiter, login);
+
+// Google One Tap / OAuth token (POST body: { credential })
+router.post('/google', authLimiter, googleLogin);
+
+// ------------------- Self-service (auth required) -------------------
+
+// Who am I
 router.get('/me', auth, getCurrentUser);
+
+// Change password (POST body: { currentPassword, newPassword })
 router.post('/change-password', authLimiter, auth, changePassword);
 
-// Google OAuth Routes
-router.get('/google', passport.authenticate('google', {
-  scope: ['profile', 'email'],
-}));
+// ------------------- Admin only -------------------
 
-router.get('/google/callback',
-  passport.authenticate('google', { failureRedirect: '/login' }),
-  (req, res) => {
-    const user = req.user;
-    const token = jwt.sign(
-      { userId: user.user_id, role: user.role },
-      process.env.JWT_SECRET,
-      { expiresIn: '7d' }
-    );
+// List all users
+router.get('/users', auth, requireRole('admin'), getAllUsers);
 
-    res.redirect(`${process.env.CLIENT_URL}/login?token=${token}`);
-  }
-);
+// Delete a user by id (not yourself)
+router.delete('/users/:userId', auth, requireRole('admin'), deleteUser);
 
 module.exports = router;

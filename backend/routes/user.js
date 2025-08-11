@@ -2,96 +2,141 @@ const express = require('express');
 const router = express.Router();
 const pool = require('../db');
 const authenticate = require('../middleware/auth');
+const { body, validationResult } = require('express-validator');
 const { uploadProfileImage, multerUpload } = require('../controllers/uploadController');
 
-// 🟢 Profile Image Upload Route
+const BASE = process.env.BASE_URL || 'http://localhost:3000';
+
+/**
+ * Helpers
+ */
+function toPublicUser(row) {
+  return {
+    userId: row.user_id,
+    username: row.username,
+    email: row.email,
+    profile_image: row.profile_image ? `${BASE}${row.profile_image}` : null,
+  };
+}
+
+/**
+ * Upload profile image
+ * POST /api/users/me/image  (multipart/form-data: image)
+ */
 router.post('/me/image', authenticate, multerUpload.single('image'), uploadProfileImage);
 
-// 🟢 Update User Details (PATCH)
-router.patch('/me', authenticate, async (req, res) => {
-  const { username, email } = req.body;
+/**
+ * Update current user
+ * PATCH /api/users/me
+ */
+router.patch(
+  '/me',
+  authenticate,
+  [
+    body('username').optional().trim().isLength({ min: 2 }).withMessage('Username must be at least 2 characters'),
+    body('email').optional().isEmail().withMessage('Email must be valid').normalizeEmail(),
+  ],
+  async (req, res) => {
+    const errors = validationResult(req);
+    if (!errors.isEmpty()) return res.status(400).json({ errors: errors.array() });
 
-  if (!username && !email) {
-    return res.status(400).json({ error: 'Nothing to update' });
-  }
+    const { username, email } = req.body;
+    if (!username && !email) return res.status(400).json({ error: 'Nothing to update' });
 
-  const updates = [];
-  const values = [];
-  let idx = 1;
+    try {
+      // If email provided, ensure it’s not in use by someone else
+      if (email) {
+        const dup = await pool.query(
+          'SELECT 1 FROM users WHERE email = $1 AND user_id <> $2',
+          [email, req.user.userId]
+        );
+        if (dup.rows.length) return res.status(409).json({ error: 'Email already in use' });
+      }
 
-  if (username) {
-    updates.push(`username = $${idx++}`);
-    values.push(username);
-  }
+      const updates = [];
+      const values = [];
+      let idx = 1;
 
-  if (email) {
-    updates.push(`email = $${idx++}`);
-    values.push(email);
-  }
+      if (username) {
+        updates.push(`username = $${idx++}`);
+        values.push(username);
+      }
+      if (email) {
+        updates.push(`email = $${idx++}`);
+        values.push(email);
+      }
+      values.push(req.user.userId);
 
-  values.push(req.user.userId);
+      const result = await pool.query(
+        `UPDATE users SET ${updates.join(', ')} WHERE user_id = $${idx} RETURNING user_id, username, email, profile_image`,
+        values
+      );
 
-  try {
-    const result = await pool.query(
-      `UPDATE users SET ${updates.join(', ')} WHERE user_id = $${idx} RETURNING user_id, email, username, profile_image`,
-      values
-    );
+      if (result.rows.length === 0) return res.status(404).json({ error: 'User not found' });
 
-    const user = result.rows[0];
-    if (user.profile_image) {
-      user.profile_image = `${process.env.BASE_URL || 'http://localhost:3000'}${user.profile_image}`;
+      res.json(toPublicUser(result.rows[0]));
+    } catch (err) {
+      console.error('User update failed:', err);
+      res.status(500).json({ error: 'User update failed' });
     }
-
-    res.json(user);
-  } catch (err) {
-    console.error('User update failed:', err);
-    res.status(500).json({ error: 'User update failed' });
   }
-});
+);
 
-// 🟢 Get Current User Details
+/**
+ * Get current user
+ * GET /api/users/me
+ */
 router.get('/me', authenticate, async (req, res) => {
   try {
     const result = await pool.query(
       'SELECT user_id, username, email, profile_image FROM users WHERE user_id = $1',
       [req.user.userId]
     );
-
-    if (result.rows.length === 0) {
-      return res.status(404).json({ error: 'User not found' });
-    }
-
-    const user = result.rows[0];
-    if (user.profile_image) {
-      user.profile_image = `${process.env.BASE_URL || 'http://localhost:3000'}${user.profile_image}`;
-    }
-
-    res.json(user);
+    if (result.rows.length === 0) return res.status(404).json({ error: 'User not found' });
+    res.json(toPublicUser(result.rows[0]));
   } catch (err) {
     console.error('Error fetching user:', err);
     res.status(500).json({ error: 'Failed to fetch user' });
   }
 });
 
-// 🟢 Delete User
+
 router.delete('/me', authenticate, async (req, res) => {
+  const client = await pool.connect();
   try {
-    const result = await pool.query(
-      'DELETE FROM users WHERE user_id = $1 RETURNING user_id, email, username',
+    await client.query('BEGIN');
+
+    // delete cart items
+    await client.query('DELETE FROM cart_items WHERE user_id = $1', [req.user.userId]);
+
+    // delete order_items for that user's orders
+    await client.query(
+      `DELETE FROM order_items 
+       WHERE order_id IN (SELECT order_id FROM orders WHERE user_id = $1)`,
       [req.user.userId]
     );
 
-    if (result.rowCount === 0) {
+    // delete orders
+    await client.query('DELETE FROM orders WHERE user_id = $1', [req.user.userId]);
+
+    // delete user
+    const del = await client.query(
+      'DELETE FROM users WHERE user_id = $1 RETURNING user_id, username, email, profile_image',
+      [req.user.userId]
+    );
+    if (del.rowCount === 0) {
+      await client.query('ROLLBACK');
       return res.status(404).json({ error: 'User not found' });
     }
 
-    res.json({
-      message: 'User deleted.',
-      user: result.rows[0],
-    });
+    await client.query('COMMIT');
+    res.json({ message: 'User deleted.', user: toPublicUser(del.rows[0]) });
   } catch (err) {
+    await client.query('ROLLBACK');
     console.error('User delete failed:', err);
     res.status(500).json({ error: 'Failed to delete user' });
+  } finally {
+    client.release();
   }
 });
 

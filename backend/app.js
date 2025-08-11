@@ -1,15 +1,21 @@
-const express = require('express');
+// backend/app.js
 const path = require('path');
 require('dotenv').config({ path: path.join(__dirname, '.env') });
-const session = require('cookie-session');
-const passport = require('passport');
-require('./middleware/passport');
+
+const express = require('express');
 const cors = require('cors');
 const helmet = require('helmet');
 const compression = require('compression');
+const session = require('cookie-session');
+const passport = require('passport');
+const swaggerUi = require('swagger-ui-express');
+
 const logger = require('./middleware/logger');
 const notFound = require('./middleware/notFound');
 const errorHandler = require('./middleware/errorHandler');
+const swaggerDocument = require('./swagger.json');
+
+require('./middleware/passport');
 
 // Routes
 const authRoutes = require('./routes/authRoutes');
@@ -21,53 +27,66 @@ const uploadRoutes = require('./routes/uploadRoutes');
 const checkoutRoutes = require('./routes/checkoutRoutes');
 const userRoutes = require('./routes/user');
 
-// DB setup
-const { Pool } = require('pg');
-const pool = new Pool({
-  user: process.env.PGUSER,
-  host: process.env.PGHOST,
-  database: process.env.PGDATABASE,
-  port: parseInt(process.env.PGPORT, 10),
-  password: process.env.PGPASSWORD || undefined,
-});
-
-pool.query('SELECT 1')
-  .then(() => console.log('🔌 Connected to the ecommerce database'))
-  .catch(err => console.error('❌ DB connection error:', err));
-
-// Initialise app
 const app = express();
 app.set('trust proxy', 1);
 app.disable('x-powered-by');
 
-// Security & Middleware
-app.use(helmet());
-app.use(cors({ origin: process.env.CORS_ORIGIN || '*' }));
-app.use(express.json({ limit: '10kb' }));
+// --- Security middleware
+app.use(
+  helmet({
+    // Swagger UI can break with strict CSP; keep default helmet (no CSP)
+    crossOriginResourcePolicy: { policy: 'cross-origin' },
+  })
+);
+
+// --- CORS
+const DEFAULT_ORIGIN = process.env.CORS_ORIGIN || process.env.FRONTEND_URL || 'http://localhost:5173';
+const ALLOWLIST = (process.env.CORS_ALLOWLIST || DEFAULT_ORIGIN)
+  .split(',')
+  .map(s => s.trim())
+  .filter(Boolean);
+
+app.use(
+  cors({
+    origin: (origin, cb) => {
+      if (!origin) return cb(null, true); // curl/postman
+      return cb(null, ALLOWLIST.includes(origin));
+    },
+    credentials: true,
+    allowedHeaders: ['Content-Type', 'Authorization'],
+    methods: ['GET', 'POST', 'PATCH', 'PUT', 'DELETE', 'OPTIONS'],
+    maxAge: 86400,
+  })
+);
+
+// --- Body parsing & compression
+app.use(express.json({ limit: '100kb' }));
 app.use(compression());
 app.use(logger);
 
-// 🟢 FIXED: Serve uploads with correct CORS headers
-app.use('/uploads', express.static('uploads', {
-  setHeaders: (res, filePath) => {
-    res.setHeader('Access-Control-Allow-Origin', '*');
-    res.setHeader('Cross-Origin-Resource-Policy', 'cross-origin');
-    if (!filePath.match(/\.(jpg|jpeg|png|webp)$/i)) {
-      res.statusCode = 403;
-      return res.end('Forbidden');
-    }
-  }
-}));
+// --- Serve uploads safely (images only)
+const imageAllowlist = /\.(?:jpg|jpeg|png|webp|gif|avif)$/i;
+app.use('/uploads', (req, res, next) => {
+  if (!imageAllowlist.test(req.path)) return res.status(403).send('Forbidden');
+  next();
+});
+app.use('/uploads', express.static(path.join(__dirname, 'uploads')));
 
-// Sessions & Passport
-app.use(session({
-  maxAge: 24 * 60 * 60 * 1000,
-  keys: [process.env.COOKIE_KEY || 'secret']
-}));
+// --- Sessions & Passport (only if you still need sessions for OAuth)
+app.use(
+  session({
+    name: 'sid',
+    maxAge: 24 * 60 * 60 * 1000,
+    keys: [process.env.COOKIE_KEY || 'dev_secret_change_me'],
+    sameSite: 'lax',
+    httpOnly: true,
+    secure: process.env.NODE_ENV === 'production',
+  })
+);
 app.use(passport.initialize());
 app.use(passport.session());
 
-// Mount routes
+// --- Routes
 app.use('/api/auth', authRoutes);
 app.use('/api/products', productRoutes);
 app.use('/api/cart', cartRoutes);
@@ -77,8 +96,11 @@ app.use('/api/uploads', uploadRoutes);
 app.use('/api/checkout', checkoutRoutes);
 app.use('/api/users', userRoutes);
 
-// Final middleware
+// --- Docs
+app.use('/api/docs', swaggerUi.serve, swaggerUi.setup(swaggerDocument));
+
+// --- Final middleware
 app.use(notFound);
 app.use(errorHandler);
 
-module.exports = { app, pool };
+module.exports = app;
