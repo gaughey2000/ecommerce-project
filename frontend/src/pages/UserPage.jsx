@@ -6,197 +6,143 @@ import SkeletonCard from '../components/SkeletonCard';
 
 export default function UserPage() {
   const { user, logout } = useContext(AuthContext);
-  const [profile, setProfile] = useState({ username: '', email: '', profile_image: '' });
-  const [passwordForm, setPasswordForm] = useState({ current: '', new: '', confirm: '' });
+  const [profile, setProfile] = useState({ username: '', email: '' });
+  const [passwordForm, setPasswordForm] = useState({ current: '', next: '', confirm: '' });
   const [orders, setOrders] = useState([]);
-  const [loadingOrders, setLoadingOrders] = useState(true);
-  const [preview, setPreview] = useState(null);
+  const [loading, setLoading] = useState(true);
 
   useEffect(() => {
-    const fetchData = async () => {
+    (async () => {
       try {
-        const profileData = await authFetch('/users/me');
-        const ordersData = await authFetch('/orders');
-        setProfile(profileData);
-        setOrders(ordersData);
-      } catch (err) {
+        const [profileData, ordersData] = await Promise.all([
+          authFetch('/users/me'),
+          authFetch('/orders'),
+        ]);
+        setProfile({ username: profileData.username, email: profileData.email });
+        setOrders(ordersData || []);
+      } catch {
         toast.error('Failed to load profile or orders');
       } finally {
-        setLoadingOrders(false);
+        setLoading(false);
       }
-    };
-    fetchData();
+    })();
   }, []);
 
-  const handleProfileChange = e => setProfile({ ...profile, [e.target.name]: e.target.value });
-  const handlePwChange = e => setPasswordForm({ ...passwordForm, [e.target.name]: e.target.value });
+  const handleProfileChange = (e) =>
+    setProfile((p) => ({ ...p, [e.target.name]: e.target.value }));
 
-  const updateProfile = async e => {
+  const saveProfile = async (e) => {
     e.preventDefault();
     try {
       await authFetch('/users/me', {
         method: 'PATCH',
-        body: JSON.stringify(profile),
+        body: JSON.stringify({ username: profile.username, email: profile.email }),
       }, true);
-    } catch {
-      toast.error('Something went wrong updating your profile.');
+      toast.success('Profile updated');
+    } catch (err) {
+      toast.error(err.message || 'Failed to update profile');
     }
   };
 
-  const changePassword = async e => {
+  const changePassword = async (e) => {
     e.preventDefault();
-    const { current, new: newPw, confirm } = passwordForm;
-
-    if (!current || !newPw || !confirm) return toast.error('All fields are required');
-    if (newPw !== confirm) return toast.error('New passwords do not match');
-    if (newPw.length < 8 || !/[A-Z]/.test(newPw) || !/\d/.test(newPw)) {
-      return toast.error('Password must be 8+ characters, with 1 uppercase & 1 number');
-    }
-
+    if (passwordForm.next !== passwordForm.confirm)
+      return toast.error('Passwords do not match');
     try {
       await authFetch('/auth/change-password', {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ currentPassword: current, newPassword: newPw }),
+        body: JSON.stringify({
+          currentPassword: passwordForm.current,
+          newPassword: passwordForm.next,
+        }),
       }, true);
-
-      setPasswordForm({ current: '', new: '', confirm: '' });
+      setPasswordForm({ current: '', next: '', confirm: '' });
     } catch (err) {
-      toast.error(`Error: ${err.message}`);
-    }
-  };
-
-  const handleImageUpload = async e => {
-    const file = e.target.files[0];
-    if (!file || !file.type.startsWith('image/')) return toast.error('Not an image');
-    if (file.size > 2 * 1024 * 1024) return toast.error('Max file size is 2MB');
-
-    const formData = new FormData();
-    formData.append('image', file);
-
-    try {
-      await authFetch('/users/me/image', { method: 'POST', body: formData }, true);
-      toast.success('Image uploaded successfully.');
-
-      const updatedProfile = await authFetch('/users/me');
-      setProfile(updatedProfile);
-      setPreview(null);
-    } catch {
-      toast.error('Image upload failed');
+      toast.error(err.message || 'Failed to change password');
     }
   };
 
   const deleteAccount = async () => {
-    if (!confirm('This will permanently delete your account and order history. Continue?')) return;
+    if (!window.confirm('Are you sure you want to delete your account? This cannot be undone.')) return;
     try {
       await authFetch('/users/me', { method: 'DELETE' }, true);
       logout();
-    } catch {
-      toast.error('Could not delete account');
+    } catch (err) {
+      toast.error(err.message || 'Failed to delete account');
     }
   };
 
+  if (loading) return <SkeletonCard count={1} />;
+
   return (
-    <div className="max-w-5xl mx-auto p-4 sm:p-6 md:p-8 space-y-12">
-      <h1 className="text-3xl font-bold text-center">My Profile</h1>
-
-      <div className="flex flex-col items-center">
-        <img
-          src={preview || profile.profile_image || '/default-avatar.png'}
-          alt="Profile"
-          className="w-24 h-24 rounded-full object-cover mb-2 border"
-        />
-        <label className="text-blue-600 text-sm cursor-pointer hover:underline">
-          Change photo
-          <input
-            type="file"
-            accept="image/*"
-            hidden
-            onChange={e => {
-              const file = e.target.files[0];
-              if (file) setPreview(URL.createObjectURL(file));
-              handleImageUpload(e);
-            }}
-          />
-        </label>
-      </div>
-
+    <div className="max-w-3xl mx-auto px-4 sm:px-6 py-10 space-y-10">
       <section>
-        <h2 className="text-2xl font-semibold mb-4">Account Details</h2>
-        <form onSubmit={updateProfile} className="space-y-4">
+        <h2 className="text-xl font-bold mb-4">Profile</h2>
+        <form onSubmit={saveProfile} className="space-y-3">
           <input
             name="username"
             value={profile.username}
             onChange={handleProfileChange}
+            placeholder="Username"
             className="w-full border p-2 rounded"
-            placeholder="Name"
           />
           <input
             name="email"
             type="email"
             value={profile.email}
             onChange={handleProfileChange}
-            className="w-full border p-2 rounded"
             placeholder="Email"
+            className="w-full border p-2 rounded"
           />
-          <button type="submit" className="bg-blue-600 text-white px-4 py-2 rounded hover:bg-blue-700">
-            Update Profile
+          <button className="bg-blue-600 hover:bg-blue-700 text-white px-4 py-2 rounded">
+            Save
           </button>
         </form>
       </section>
 
       <section>
-        <h2 className="text-2xl font-semibold mb-4">Change Password</h2>
-        <form onSubmit={changePassword} className="space-y-4">
+        <h2 className="text-xl font-bold mb-4">Change Password</h2>
+        <form onSubmit={changePassword} className="space-y-3">
           <input
             type="password"
-            name="current"
+            placeholder="Current password"
             value={passwordForm.current}
-            onChange={handlePwChange}
-            autoComplete="off"
+            onChange={(e) => setPasswordForm((s) => ({ ...s, current: e.target.value }))}
             className="w-full border p-2 rounded"
-            placeholder="Current Password"
           />
           <input
             type="password"
-            name="new"
-            value={passwordForm.new}
-            onChange={handlePwChange}
-            autoComplete="off"
+            placeholder="New password"
+            value={passwordForm.next}
+            onChange={(e) => setPasswordForm((s) => ({ ...s, next: e.target.value }))}
             className="w-full border p-2 rounded"
-            placeholder="New Password"
           />
           <input
             type="password"
-            name="confirm"
+            placeholder="Confirm new password"
             value={passwordForm.confirm}
-            onChange={handlePwChange}
-            autoComplete="off"
+            onChange={(e) => setPasswordForm((s) => ({ ...s, confirm: e.target.value }))}
             className="w-full border p-2 rounded"
-            placeholder="Confirm Password"
           />
-          <button type="submit" className="bg-indigo-600 text-white px-4 py-2 rounded hover:bg-indigo-700">
+          <button className="bg-gray-800 hover:bg-black text-white px-4 py-2 rounded">
             Change Password
           </button>
         </form>
       </section>
 
       <section>
-        <h2 className="text-2xl font-semibold mb-4">Order History</h2>
-        <ul className="space-y-3">
-          {loadingOrders ? (
-            Array.from({ length: 3 }).map((_, i) => <SkeletonCard key={i} />)
-          ) : orders.length > 0 ? (
-            orders.map(order => (
-              <li key={order.order_id} className="border rounded p-3 bg-white shadow-sm">
-                <div><strong>ID:</strong> {order.order_id}</div>
-                <div><strong>Status:</strong> {order.status}</div>
-                <div><strong>Total:</strong> £{Number(order.total_amount).toFixed(2)}</div>
-                <div><strong>Date:</strong> {new Date(order.created_at).toLocaleString()}</div>
+        <h2 className="text-xl font-bold mb-4">Orders</h2>
+        <ul className="space-y-2">
+          {orders.length ? (
+            orders.map(o => (
+              <li key={o.order_id} className="border rounded p-3">
+                <div className="text-sm text-gray-600">Order #{o.order_id}</div>
+                <div>Status: {o.status}</div>
+                <div>Total: £{Number(o.total_amount).toFixed(2)}</div>
               </li>
             ))
           ) : (
-            <p className="text-gray-500">No past orders found.</p>
+            <p className="text-gray-600">No orders yet.</p>
           )}
         </ul>
       </section>

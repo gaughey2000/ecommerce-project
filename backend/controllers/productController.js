@@ -1,8 +1,33 @@
 const pool = require('../db');
 
-// Helpers to map legacy price <-> unit_amount
+// ---- helpers ----
+
+// map legacy price <-> unit_amount
 const toUnitAmount = (price) => Math.round(Number(price) * 100);
 const toPrice = (unit_amount) => Number(unit_amount) / 100;
+
+// Normalize incoming numeric-ish values from forms/JSON
+const normPrice = (v) => {
+  if (v === undefined || v === null) return null;
+  if (typeof v === 'string') {
+    const t = v.trim();
+    if (t === '') return null;
+    const n = Number(t);
+    return Number.isFinite(n) ? n : null;
+  }
+  return Number.isFinite(v) ? Number(v) : null;
+};
+
+const normInt = (v) => {
+  if (v === undefined || v === null) return null;
+  if (typeof v === 'string') {
+    const t = v.trim();
+    if (t === '') return null;
+    const n = Number(t);
+    return Number.isInteger(n) ? n : null;
+  }
+  return Number.isInteger(v) ? v : null;
+};
 
 // GET /products?query=...
 const getProducts = async (req, res, next) => {
@@ -34,61 +59,68 @@ const getProducts = async (req, res, next) => {
 
 // POST /products
 const addProduct = async (req, res, next) => {
-  // accept either unit_amount(+currency) or legacy price
-  const { name, unit_amount, currency, price, description, stock_quantity, image } = req.body;
-
-  if (!name || (unit_amount == null && price == null) || stock_quantity == null) {
-    const error = new Error('Name, unit_amount/price, and stock quantity are required');
-    error.status = 400;
-    return next(error);
-  }
-
-  const ua = Number.isInteger(unit_amount) ? unit_amount : toUnitAmount(price);
-  if (!Number.isInteger(ua) || ua <= 0) {
-    const error = new Error('unit_amount must be a positive integer (minor units)');
-    error.status = 400;
-    return next(error);
-  }
-
-  const curr = (currency || 'GBP').toUpperCase();
-
   try {
+    const { name, unit_amount, currency, price, description, stock_quantity, image } = req.body;
+
+    const uaInput = normInt(unit_amount);
+    const priceInput = normPrice(price);
+    const stockInt = normInt(stock_quantity);
+
+    if (!name || (uaInput == null && priceInput == null) || stockInt == null) {
+      const error = new Error('Name, unit_amount/price, and stock quantity are required');
+      error.status = 400;
+      return next(error);
+    }
+
+    const ua = uaInput != null ? uaInput : toUnitAmount(priceInput);
+    if (!Number.isInteger(ua) || ua <= 0) {
+      const error = new Error('unit_amount must be a positive integer (minor units)');
+      error.status = 400;
+      return next(error);
+    }
+
+    const curr = (currency || 'GBP').toUpperCase();
+
     const result = await pool.query(
       `INSERT INTO products (name, description, unit_amount, currency, price, stock_quantity, image, is_active)
        VALUES ($1, $2, $3, $4, $5, $6, $7, true)
        RETURNING product_id AS id, name, description, stock_quantity, image,
                  unit_amount, currency,
                  COALESCE(price, unit_amount/100.0) AS price`,
-      [name, description || null, ua, curr, price ?? null, stock_quantity, image || null]
+      [name, description || null, ua, curr, priceInput ?? null, stockInt, image || null]
     );
     res.status(201).json(result.rows[0]);
   } catch (error) {
-    error.status = 500;
+    error.status = error.status || 500;
     next(error);
   }
 };
 
 // PATCH /products/:id
 const updateProduct = async (req, res, next) => {
-  const { id } = req.params;
-  const { name, unit_amount, currency, price, description, stock_quantity, image } = req.body;
-
-  if (!name || (unit_amount == null && price == null) || stock_quantity == null) {
-    const error = new Error('All fields are required');
-    error.status = 400;
-    return next(error);
-  }
-
-  const ua = Number.isInteger(unit_amount) ? unit_amount : toUnitAmount(price);
-  if (!Number.isInteger(ua) || ua <= 0) {
-    const error = new Error('unit_amount must be a positive integer (minor units)');
-    error.status = 400;
-    return next(error);
-  }
-
-  const curr = (currency || 'GBP').toUpperCase();
-
   try {
+    const { id } = req.params;
+    const { name, unit_amount, currency, price, description, stock_quantity, image } = req.body;
+
+    const uaInput = normInt(unit_amount);
+    const priceInput = normPrice(price);
+    const stockInt = normInt(stock_quantity);
+
+    if (!name || (uaInput == null && priceInput == null) || stockInt == null) {
+      const error = new Error('All fields are required');
+      error.status = 400;
+      return next(error);
+    }
+
+    const ua = uaInput != null ? uaInput : toUnitAmount(priceInput);
+    if (!Number.isInteger(ua) || ua <= 0) {
+      const error = new Error('unit_amount must be a positive integer (minor units)');
+      error.status = 400;
+      return next(error);
+    }
+
+    const curr = (currency || 'GBP').toUpperCase();
+
     const result = await pool.query(
       `UPDATE products
        SET name = $1, description = $2, unit_amount = $3, currency = $4, price = $5,
@@ -97,7 +129,7 @@ const updateProduct = async (req, res, next) => {
        RETURNING product_id AS id, name, description, stock_quantity, image,
                  unit_amount, currency,
                  COALESCE(price, unit_amount/100.0) AS price`,
-      [name, description || null, ua, curr, price ?? null, stock_quantity, image || null, id]
+      [name, description || null, ua, curr, priceInput ?? null, stockInt, image || null, id]
     );
 
     if (result.rows.length === 0) {
@@ -108,7 +140,7 @@ const updateProduct = async (req, res, next) => {
 
     res.json(result.rows[0]);
   } catch (error) {
-    error.status = 500;
+    error.status = error.status || 500;
     next(error);
   }
 };

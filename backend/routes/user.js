@@ -3,9 +3,7 @@ const router = express.Router();
 const pool = require('../db');
 const authenticate = require('../middleware/auth');
 const { body, validationResult } = require('express-validator');
-const { uploadProfileImage, multerUpload } = require('../controllers/uploadController');
 
-const BASE = process.env.BASE_URL || 'http://localhost:3000';
 
 /**
  * Helpers
@@ -15,16 +13,8 @@ function toPublicUser(row) {
     userId: row.user_id,
     username: row.username,
     email: row.email,
-    profile_image: row.profile_image ? `${BASE}${row.profile_image}` : null,
   };
 }
-
-/**
- * Upload profile image
- * POST /api/users/me/image  (multipart/form-data: image)
- */
-router.post('/me/image', authenticate, multerUpload.single('image'), uploadProfileImage);
-
 /**
  * Update current user
  * PATCH /api/users/me
@@ -68,7 +58,7 @@ router.patch(
       values.push(req.user.userId);
 
       const result = await pool.query(
-        `UPDATE users SET ${updates.join(', ')} WHERE user_id = $${idx} RETURNING user_id, username, email, profile_image`,
+        `UPDATE users SET ${updates.join(', ')} WHERE user_id = $${idx} RETURNING user_id, username, email`,
         values
       );
 
@@ -89,7 +79,7 @@ router.patch(
 router.get('/me', authenticate, async (req, res) => {
   try {
     const result = await pool.query(
-      'SELECT user_id, username, email, profile_image FROM users WHERE user_id = $1',
+      'SELECT user_id, username, email FROM users WHERE user_id = $1',
       [req.user.userId]
     );
     if (result.rows.length === 0) return res.status(404).json({ error: 'User not found' });
@@ -121,7 +111,7 @@ router.delete('/me', authenticate, async (req, res) => {
 
     // delete user
     const del = await client.query(
-      'DELETE FROM users WHERE user_id = $1 RETURNING user_id, username, email, profile_image',
+      'DELETE FROM users WHERE user_id = $1 RETURNING user_id, username, email',
       [req.user.userId]
     );
     if (del.rowCount === 0) {

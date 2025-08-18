@@ -4,6 +4,7 @@ import { authFetch } from '../services/api';
 import { AuthContext } from '../context/AuthContext';
 import { toast } from 'sonner';
 import SkeletonCard from '../components/SkeletonCard';
+import { mediaUrl } from '../lib/media'; 
 
 export default function ProductListPage() {
   const { user } = useContext(AuthContext);
@@ -76,7 +77,7 @@ export default function ProductListPage() {
               className="bg-white rounded-lg shadow p-4 flex flex-col justify-between cursor-pointer hover:scale-[1.02] transition"
             >
               <img
-                src={product.image ? `${product.image}` : '/placeholder.jpg'}
+                src={mediaUrl(product.image)}
                 alt={product.name}
                 className="w-full h-48 object-cover rounded mb-3"
                 onError={e => { e.currentTarget.src = '/placeholder.jpg'; }}
@@ -112,10 +113,10 @@ export default function ProductListPage() {
           <p className="text-center text-gray-600 col-span-full">No products found.</p>
         )}
       </div>
+
       {quickViewId && (
-  <ProductQuickView productId={quickViewId} onClose={() => setQuickViewId(null)} />
-)}
+        <ProductQuickView productId={quickViewId} onClose={() => setQuickViewId(null)} />
+      )}
     </div>
-    
   );
 }

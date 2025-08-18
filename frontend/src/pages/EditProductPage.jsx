@@ -3,6 +3,7 @@ import { authFetch } from '../services/api';
 import { useNavigate, useParams } from 'react-router-dom';
 import { toast } from 'sonner';
 import SkeletonCard from '../components/SkeletonCard';
+import { mediaUrl } from '../lib/media';
 
 export default function EditProductPage() {
   const { id } = useParams();
@@ -13,137 +14,150 @@ export default function EditProductPage() {
     description: '',
     price: '',
     stock_quantity: '',
-    image: ''
+    image: null
   });
   const [imageFile, setImageFile] = useState(null);
   const [loading, setLoading] = useState(true);
+  const [saving, setSaving] = useState(false);
 
   useEffect(() => {
-    const fetchProduct = async () => {
+    let mounted = true;
+    (async () => {
       try {
         const data = await authFetch(`/products/${id}`);
-        setForm(data);
-      } catch (err) {
-        toast.error(err.message);
+        if (!mounted) return;
+        setForm({
+          name: data.name || '',
+          description: data.description || '',
+          price: data.price ?? '',
+          stock_quantity: data.stock_quantity ?? '',
+          image: data.image || null
+        });
+      } catch {
+        toast.error('Failed to fetch product');
       } finally {
-        setLoading(false);
+        if (mounted) setLoading(false);
       }
-    };
-
-    fetchProduct();
+    })();
+    return () => { mounted = false; };
   }, [id]);
 
-  const handleChange = e => setForm({ ...form, [e.target.name]: e.target.value });
+  const handleChange = (e) => setForm(prev => ({ ...prev, [e.target.name]: e.target.value }));
 
-  const handleSubmit = async e => {
+  const handleSubmit = async (e) => {
     e.preventDefault();
-    setLoading(true);
-
+    setSaving(true);
     try {
-      let imagePath = form.image;
-
+      // Upload new image first (if selected)
+      let image = form.image;
       if (imageFile) {
-        if (!imageFile.type.startsWith('image/')) {
-          toast.error('Invalid image file');
-          setLoading(false);
-          return;
-        }
+        if (!imageFile.type.startsWith('image/')) throw new Error('Invalid image file');
+        if (imageFile.size > 2 * 1024 * 1024) throw new Error('Max image size is 2MB');
 
-        if (imageFile.size > 2 * 1024 * 1024) {
-          toast.error('Max image size 2MB');
-          setLoading(false);
-          return;
-        }
+        const fd = new FormData();
+        fd.append('image', imageFile);
 
-        const formData = new FormData();
-        formData.append('image', imageFile);
-
-        const uploadRes = await authFetch('/uploads/product', {
+        // NOTE: fixed path -> '/uploads/products/image'
+        const up = await authFetch('/uploads/products/image', {
           method: 'POST',
-          body: formData,
+          body: fd
         });
-
-        imagePath = uploadRes.image;
+        image = up?.image || null;
       }
 
-      await authFetch(`/admin/products/${id}`, {
-        method: 'PUT',
-        body: JSON.stringify({ ...form, image: imagePath }),
+      const payload = {
+        name: form.name.trim(),
+        description: form.description.trim(),
+        price: Number(form.price),
+        stock_quantity: Number(form.stock_quantity),
+        image
+      };
+
+      await authFetch(`/products/${id}`, {
+        method: 'PATCH',
+        body: JSON.stringify(payload)
       }, true);
 
       toast.success('✅ Product updated!');
       navigate('/admin');
     } catch (err) {
-      toast.error(`❌ ${err.message}`);
+      toast.error(err.message || 'Failed to update product');
     } finally {
-      setLoading(false);
+      setSaving(false);
     }
   };
+
+  if (loading) return <SkeletonCard count={1} />;
 
   return (
     <div className="max-w-2xl mx-auto px-4 sm:px-6 py-10">
       <h1 className="text-2xl sm:text-3xl font-bold mb-6 text-center">Edit Product</h1>
 
-      {loading ? (
-        <SkeletonCard />
-      ) : (
-        <form onSubmit={handleSubmit} className="space-y-4">
-          <input
-            name="name"
-            value={form.name}
-            onChange={handleChange}
-            placeholder="Product name"
-            className="w-full border p-2 rounded"
-            required
-          />
-          <textarea
-            name="description"
-            value={form.description}
-            onChange={handleChange}
-            placeholder="Description"
-            className="w-full border p-2 rounded"
-            required
-          />
-          <input
-            type="number"
-            step="0.01"
-            name="price"
-            value={form.price}
-            onChange={handleChange}
-            placeholder="Price"
-            className="w-full border p-2 rounded"
-            required
-          />
-          <input
-            type="number"
-            name="stock_quantity"
-            value={form.stock_quantity}
-            onChange={handleChange}
-            placeholder="Stock quantity"
-            className="w-full border p-2 rounded"
-            required
-          />
+      <form onSubmit={handleSubmit} className="space-y-4">
+        <input
+          name="name"
+          value={form.name}
+          onChange={handleChange}
+          placeholder="Product name"
+          required
+          className="w-full border p-2 rounded"
+        />
+        <textarea
+          name="description"
+          value={form.description}
+          onChange={handleChange}
+          placeholder="Description"
+          required
+          className="w-full border p-2 rounded"
+        />
+        <input
+          type="number"
+          step="0.01"
+          name="price"
+          value={form.price}
+          onChange={handleChange}
+          placeholder="Price"
+          required
+          className="w-full border p-2 rounded"
+        />
+        <input
+          type="number"
+          name="stock_quantity"
+          value={form.stock_quantity}
+          onChange={handleChange}
+          placeholder="Stock Quantity"
+          required
+          className="w-full border p-2 rounded"
+        />
 
-          <div>
-            {form.image && (
-              <img src={form.image} alt="Current Product" className="w-32 h-32 object-cover mb-2" />
-            )}
-            <input
-              type="file"
-              accept="image/*"
-              onChange={e => setImageFile(e.target.files[0])}
-              className="w-full"
-            />
-          </div>
+        {/* Current image preview */}
+        <div className="space-y-2">
+          <div className="text-sm text-gray-600">Current image</div>
+          <img
+            src={mediaUrl(form.image)}
+            alt="Product"
+            className="w-full max-h-64 object-cover rounded border"
+          />
+        </div>
 
-          <button
-            type="submit"
-            className="w-full bg-green-600 hover:bg-green-700 text-white py-2 rounded"
-          >
-            {loading ? 'Saving...' : 'Update Product'}
-          </button>
-        </form>
-      )}
+        <div className="space-y-2">
+          <label className="block text-sm text-gray-700">Replace image</label>
+          <input
+            type="file"
+            accept="image/*"
+            onChange={e => setImageFile(e.target.files?.[0] || null)}
+            className="w-full"
+          />
+        </div>
+
+        <button
+          type="submit"
+          className="w-full bg-green-600 hover:bg-green-700 text-white py-2 rounded"
+          disabled={saving}
+        >
+          {saving ? 'Saving...' : 'Update Product'}
+        </button>
+      </form>
     </div>
   );
 }

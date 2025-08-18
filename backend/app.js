@@ -49,7 +49,7 @@ app.use(
     origin: (origin, cb) => {
       if (!origin) return cb(null, true);
       if (ALLOWLIST.includes(origin)) return cb(null, true);
-      return cb(new Error(`CORS: Origin ${origin} not allowed`), false);
+      return cb(new Error(`CORS: Origin ${origin} not allowed`), false);   
     },
     credentials: true,
     allowedHeaders: ['Content-Type', 'Authorization'],
@@ -58,6 +58,23 @@ app.use(
   })
 );
 
+// Static /uploads (images only)
+const UPLOADS_DIR = path.join(__dirname, 'uploads');
+const imageAllowlist = /\.(?:jpg|jpeg|png|webp|gif|avif)$/i;
+app.use('/uploads', (req, res, next) => {
+  if (!imageAllowlist.test(req.path)) return res.status(403).send('Forbidden');
+  next();
+});
+app.use('/uploads', express.static(UPLOADS_DIR, {
+  fallthrough: true,
+  maxAge: '7d',
+  setHeaders(res) {
+    // Strong caching + allow embedding from the frontend
+    res.setHeader('Cache-Control', 'public, max-age=31536000, immutable');
+    res.setHeader('Cross-Origin-Resource-Policy', 'cross-origin');
+  }
+}));
+
 // Stripe webhook requires raw body BEFORE json()
 app.use('/api/checkout/webhook', express.raw({ type: 'application/json' }));
 
@@ -65,15 +82,6 @@ app.use('/api/checkout/webhook', express.raw({ type: 'application/json' }));
 app.use(compression());
 app.use(express.json({ limit: '100kb' }));
 app.use(logger);
-
-// Serve uploads (images only) with cache
-const imageAllowlist = /\.(?:jpg|jpeg|png|webp|gif|avif)$/i;
-app.use('/uploads', (req, res, next) => {
-  if (!imageAllowlist.test(req.path)) return res.status(403).send('Forbidden');
-  res.setHeader('Cache-Control', 'public, max-age=31536000, immutable');
-  next();
-});
-app.use('/uploads', express.static(path.join(__dirname, 'uploads')));
 
 // Sessions & Passport (if needed)
 app.use(

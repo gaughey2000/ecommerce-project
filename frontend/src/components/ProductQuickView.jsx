@@ -2,7 +2,8 @@ import { useEffect, useState } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { authFetch } from '../services/api';
 import { toast } from 'sonner';
-import AccordionSection from '../components/AccordionSection'; // ✅ Make sure this path is correct
+import AccordionSection from '../components/AccordionSection';
+import { mediaUrl } from '../lib/media'; 
 
 export default function ProductQuickView({ productId, onClose }) {
   const [product, setProduct] = useState(null);
@@ -68,9 +69,10 @@ export default function ProductQuickView({ productId, onClose }) {
               </button>
 
               <img
-                src={`http://localhost:3000${product.image}`}
+                src={mediaUrl(product.image)}
                 alt={product.name}
                 className="w-full h-48 object-cover rounded mb-4"
+                onError={e => { e.currentTarget.src = '/placeholder.jpg'; }}
               />
 
               <h2 className="text-xl font-bold">{product.name}</h2>
@@ -121,16 +123,13 @@ export default function ProductQuickView({ productId, onClose }) {
                 Add to Cart
               </button>
 
-              {/* Accordion Sections */}
               <div className="mt-6">
                 <AccordionSection title="Product Details">
                   {product.description || 'No description available.'}
                 </AccordionSection>
-
                 <AccordionSection title="More Info">
                   {product.more_info || 'No additional information provided.'}
                 </AccordionSection>
-
                 <AccordionSection title="Returns Policy">
                   <p>Returns are accepted within 14 days of delivery. Items must be unused and in original packaging.</p>
                 </AccordionSection>

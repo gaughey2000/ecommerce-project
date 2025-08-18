@@ -31,15 +31,22 @@ export default function Navbar() {
             <>
               <Link to="/products" className="hover:text-blue-400">Products</Link>
               <Link to="/cart" className="hover:text-blue-400">Cart</Link>
-              <Link to="/checkout" className="hover:text-blue-400">Checkout</Link>
               <Link to="/user" className="hover:text-blue-400">My Account</Link>
-              {user.role === 'admin' && <Link to="/admin" className="hover:text-yellow-400">Admin Panel</Link>}
-              <span className="text-gray-300">Olá, <strong>{user.username || user.email}</strong></span>
-              {user.role === 'admin' && <span className="text-xs bg-yellow-400 text-black px-2 py-0.5 rounded-full">Admin</span>}
+              {user.role === 'admin' && (
+                <Link to="/admin" className="hover:text-yellow-400">Admin Panel</Link>
+              )}
+              <span className="text-gray-300">
+                Olá, <strong>{user.username || user.email}</strong>
+              </span>
+              {user.role === 'admin' && (
+                <span className="text-xs bg-yellow-400 text-black px-2 py-0.5 rounded-full">Admin</span>
+              )}
               <button
                 onClick={handleLogout}
                 className="bg-red-600 hover:bg-red-700 text-white px-3 py-1.5 rounded"
-              >Logout</button>
+              >
+                Logout
+              </button>
             </>
           ) : (
             <>
@@ -57,15 +64,22 @@ export default function Navbar() {
             <>
               <Link to="/products" className="block hover:text-blue-400">Products</Link>
               <Link to="/cart" className="block hover:text-blue-400">Cart</Link>
-              <Link to="/checkout" className="block hover:text-blue-400">Checkout</Link>
               <Link to="/user" className="block hover:text-blue-400">My Account</Link>
-              {user.role === 'admin' && <Link to="/admin" className="block hover:text-yellow-400">Admin Panel</Link>}
-              <p className="text-gray-300">Olá, <strong>{user.username || user.email}</strong></p>
-              {user.role === 'admin' && <span className="text-xs bg-yellow-400 text-black px-2 py-0.5 rounded-full">Admin</span>}
+              {user.role === 'admin' && (
+                <Link to="/admin" className="block hover:text-yellow-400">Admin Panel</Link>
+              )}
+              <p className="text-gray-300">
+                Olá, <strong>{user.username || user.email}</strong>
+              </p>
+              {user.role === 'admin' && (
+                <span className="text-xs bg-yellow-400 text-black px-2 py-0.5 rounded-full">Admin</span>
+              )}
               <button
                 onClick={handleLogout}
                 className="block w-full bg-red-600 hover:bg-red-700 text-white px-4 py-2 rounded"
-              >Logout</button>
+              >
+                Logout
+              </button>
             </>
           ) : (
             <>

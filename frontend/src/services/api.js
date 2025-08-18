@@ -1,6 +1,7 @@
+// frontend/src/services/api.js
 import { toast } from 'sonner';
 
-const API_BASE_URL = 'http://localhost:3000/api';
+export const API_BASE_URL = `${(import.meta.env.VITE_API_URL || 'http://localhost:3000').replace(/\/$/, '')}/api`;
 
 export const authFetch = async (endpoint, options = {}, showToast = false) => {
   const token = localStorage.getItem('token');
@@ -22,9 +23,7 @@ export const authFetch = async (endpoint, options = {}, showToast = false) => {
     const isJson = contentType.includes('application/json');
 
     let data = null;
-    if (isJson) {
-      data = await res.json();
-    }
+    if (isJson) data = await res.json();
 
     if (!res.ok) {
       if (showToast) toast.error(data?.error || 'Something went wrong');
@@ -32,8 +31,7 @@ export const authFetch = async (endpoint, options = {}, showToast = false) => {
     }
 
     if (showToast && data?.message) toast.success(data.message);
-
-    return data ?? {}; // ✅ Always return an object
+    return data ?? {};
   } catch (err) {
     if (showToast) toast.error(err.message || 'Request failed');
     throw err;
