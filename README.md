@@ -1,60 +1,6 @@
 # 🛒 PERN E-commerce App
 
 Full-stack e-commerce built with **PostgreSQL**, **Express.js**, **React (Vite)**, and **Node.js**.  
-JWT + Google OAuth auth, admin dashboard, secure image uploads, Swagger docs, and Stripe Checkout with webhooks.
-
----
-
-## ✨ Features
-- 🔐 JWT + Google OAuth
-- 🛍️ Products with stock control & variants (size/colour)
-- 🛠️ Admin dashboard (CRUD users/products/orders)
-- 🛒 Stripe Checkout + webhook confirmation
-- 🖼️ Secure image uploads (2MB; JPG/PNG/WebP)
-- 📄 Swagger UI at `/api/docs`
-- 🧼 Global error handling & role-based access
-
----
-
-## 🧱 Prerequisites
-- Node.js v18+
-- PostgreSQL
-- npm or Yarn
-- Stripe CLI (for local webhooks)
-
----
-
-## 🔧 Environment
-Create these two files from the examples below.
-
-**`backend/.env`**
-```env
-# DATABASE CONFIG
-PGHOST=localhost
-PGPORT=5432
-PGUSER=your_pg_user
-PGPASSWORD=your_pg_password
-PGDATABASE=ecommerce
-
-# JWT
-JWT_SECRET=your_super_secret_key
-
-# GOOGLE OAUTH
-GOOGLE_CLIENT_ID=your_google_client_id
-GOOGLE_CLIENT_SECRET=your_google_client_secret
-
-# FRONTEND ORIGIN
-CORS_ORIGIN=http://localhost:5173
-
-# APP PORT
-PORT=3000
-
-# STRIPE
-STRIPE_SECRET_KEY=sk_test_...
-STRIPE_WEBHOOK_SECRET=whsec_...   # filled after running `stripe listen`
-# 🛒 PERN E-commerce App
-
-Full-stack e-commerce built with **PostgreSQL**, **Express.js**, **React (Vite)**, and **Node.js**.  
 Includes JWT + Google OAuth authentication, admin dashboard, secure image uploads, Swagger docs, and Stripe Checkout with webhooks.
 
 ---
@@ -180,6 +126,15 @@ Exp: Any future date
 CVC: Any 3 digits
 ZIP: Any
 ```
+
+---
+
+## 🔑 Test Accounts
+After running the seed script, you can log in with:
+
+- User: `alice@example.com` / `password123`
+- User: `bob@example.com` / `password456`
+- Admin: `admin@example.com` / `adminpassword`
 
 ---
 

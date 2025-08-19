@@ -6,13 +6,20 @@ const {
   createOrder,
   getOrderHistory,
   getOrderById,
-  getOrderItemsByOrderId
+  getOrderItemsByOrderId,
+  updateOrderStatus,
+  cancelOrder,
 } = require('../controllers/orderController');
 const { orderValidation } = require('../middleware/validation/orderValidation');
 const { validate } = require('../middleware/validation/validate');
 
+// Create new order
 router.post('/', authenticateToken, orderValidation, validate, createOrder);
+
+// Get all orders for logged-in user
 router.get('/', authenticateToken, getOrderHistory);
+
+// Get order by Stripe session
 router.get('/by-session/:sessionId', authenticateToken, async (req, res) => {
   const { sessionId } = req.params;
   try {
@@ -27,12 +34,20 @@ router.get('/by-session/:sessionId', authenticateToken, async (req, res) => {
     if (!rows.length) return res.status(404).json({ error: 'Order not found' });
     res.json(rows[0]);
   } catch (err) {
-    console.error('by-session error:', err);
     res.status(500).json({ error: 'Failed to fetch order' });
   }
 });
 
+// Get one order by ID
 router.get('/:orderId', authenticateToken, getOrderById);
+
+// Get items of an order
 router.get('/:orderId/items', authenticateToken, getOrderItemsByOrderId);
+
+// Update order (status)
+router.patch('/:orderId', authenticateToken, updateOrderStatus);
+
+// Cancel order (soft delete)
+router.delete('/:orderId', authenticateToken, cancelOrder);
 
 module.exports = router;

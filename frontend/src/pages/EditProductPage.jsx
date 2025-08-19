@@ -1,163 +1,315 @@
-import { useEffect, useState } from 'react';
-import { authFetch } from '../services/api';
-import { useNavigate, useParams } from 'react-router-dom';
+import { useEffect, useMemo, useState } from 'react';
+import { useNavigate, useParams, Link } from 'react-router-dom';
 import { toast } from 'sonner';
-import SkeletonCard from '../components/SkeletonCard';
+import { authFetch, API_BASE_URL } from '../services/api';
 import { mediaUrl } from '../lib/media';
 
 export default function EditProductPage() {
   const { id } = useParams();
   const navigate = useNavigate();
 
+  const [loading, setLoading] = useState(true);
+  const [submitting, setSubmitting] = useState(false);
+
   const [form, setForm] = useState({
     name: '',
     description: '',
-    price: '',
-    stock_quantity: '',
-    image: null
+    // we’ll display/accept decimal price but send both price OR unit_amount based on what you edit
+    price: '', // decimal string
+    stock_quantity: 0,
+    image: '', // stored server path
   });
-  const [imageFile, setImageFile] = useState(null);
-  const [loading, setLoading] = useState(true);
-  const [saving, setSaving] = useState(false);
+
+  // image handling
+  const [imageFile, setImageFile] = useState(null); // local file chosen
+  const [dragOver, setDragOver] = useState(false);
 
   useEffect(() => {
-    let mounted = true;
-    (async () => {
-      try {
-        const data = await authFetch(`/products/${id}`);
-        if (!mounted) return;
-        setForm({
-          name: data.name || '',
-          description: data.description || '',
-          price: data.price ?? '',
-          stock_quantity: data.stock_quantity ?? '',
-          image: data.image || null
-        });
-      } catch {
-        toast.error('Failed to fetch product');
-      } finally {
-        if (mounted) setLoading(false);
-      }
-    })();
-    return () => { mounted = false; };
+    loadProduct();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [id]);
 
-  const handleChange = (e) => setForm(prev => ({ ...prev, [e.target.name]: e.target.value }));
-
-  const handleSubmit = async (e) => {
-    e.preventDefault();
-    setSaving(true);
+  async function loadProduct() {
+    setLoading(true);
     try {
-      // Upload new image first (if selected)
-      let image = form.image;
+      const p = await authFetch(`/products/${id}`);
+      setForm({
+        name: p.name || '',
+        description: p.description || '',
+        price: p.price != null ? String(Number(p.price)) : p.unit_amount != null ? (p.unit_amount / 100).toFixed(2) : '',
+        stock_quantity: Number(p.stock_quantity ?? 0),
+        image: p.image || '', // server path or empty
+      });
+    } catch (err) {
+      console.error(err);
+      toast.error('Failed to load product');
+    } finally {
+      setLoading(false);
+    }
+  }
+
+  function onChange(e) {
+    const { name, value } = e.target;
+    setForm((f) => ({
+      ...f,
+      [name]: name === 'stock_quantity' ? Number(value) : value,
+    }));
+  }
+
+  function onPickFile(e) {
+    const file = e.target.files?.[0];
+    if (file) validateAndSetFile(file);
+  }
+
+  function validateAndSetFile(file) {
+    const MAX = 2 * 1024 * 1024; // 2MB
+    const okTypes = ['image/jpeg', 'image/png', 'image/webp'];
+    if (!okTypes.includes(file.type)) {
+      toast.error('Only JPG, PNG, or WebP images allowed');
+      return;
+    }
+    if (file.size > MAX) {
+      toast.error('Image must be ≤ 2MB');
+      return;
+    }
+    setImageFile(file);
+  }
+
+  async function uploadImage() {
+    if (!imageFile) return null;
+    const fd = new FormData();
+    fd.append('image', imageFile);
+    try {
+      const res = await fetch(`${API_BASE_URL}/uploads/products/image`, {
+        method: 'POST',
+        headers: {
+          Authorization: `Bearer ${localStorage.getItem('token') || ''}`,
+        },
+        body: fd,
+      });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data?.error || 'Upload failed');
+      return data.image; // e.g. "/uploads/123-file.webp"
+    } catch (err) {
+      console.error(err);
+      toast.error(err.message || 'Failed to upload image');
+      throw err;
+    }
+  }
+
+  async function handleSubmit(e) {
+    e.preventDefault();
+    if (!form.name.trim()) return toast.error('Name is required');
+    if (!form.price || Number(form.price) <= 0) return toast.error('Price must be > 0');
+    if (form.stock_quantity < 0) return toast.error('Stock must be ≥ 0');
+
+    setSubmitting(true);
+    try {
+      // 1) Upload a new image if selected
+      let imagePath = form.image || '';
       if (imageFile) {
-        if (!imageFile.type.startsWith('image/')) throw new Error('Invalid image file');
-        if (imageFile.size > 2 * 1024 * 1024) throw new Error('Max image size is 2MB');
-
-        const fd = new FormData();
-        fd.append('image', imageFile);
-
-        // NOTE: fixed path -> '/uploads/products/image'
-        const up = await authFetch('/uploads/products/image', {
-          method: 'POST',
-          body: fd
-        });
-        image = up?.image || null;
+        imagePath = await uploadImage();
       }
 
+      // 2) Build payload
+      // Your backend accepts legacy decimal "price" OR integer "unit_amount".
+      // We’ll send both: price (decimal string) and unit_amount (derived), backend will use either.
+      const decimal = Number(form.price);
       const payload = {
         name: form.name.trim(),
-        description: form.description.trim(),
-        price: Number(form.price),
+        description: form.description?.trim() || null,
+        price: String(decimal), // legacy
+        unit_amount: Math.round(decimal * 100), // minor units
+        currency: 'GBP',
         stock_quantity: Number(form.stock_quantity),
-        image
+        image: imagePath || null,
       };
 
-      await authFetch(`/products/${id}`, {
+      const updated = await authFetch(`/products/${id}`, {
         method: 'PATCH',
-        body: JSON.stringify(payload)
+        body: JSON.stringify(payload),
       }, true);
 
-      toast.success('✅ Product updated!');
+      toast.success(`Updated "${updated?.name}"`);
       navigate('/admin');
     } catch (err) {
-      toast.error(err.message || 'Failed to update product');
+      console.error(err);
     } finally {
-      setSaving(false);
+      setSubmitting(false);
     }
-  };
+  }
 
-  if (loading) return <SkeletonCard count={1} />;
+  function onDrop(e) {
+    e.preventDefault();
+    setDragOver(false);
+    const file = e.dataTransfer.files?.[0];
+    if (file) validateAndSetFile(file);
+  }
+
+  const displayPreviewSrc = useMemo(() => {
+    if (imageFile) return URL.createObjectURL(imageFile);
+    if (form.image) return mediaUrl(form.image);
+    return mediaUrl('/uploads/placeholder.jpg');
+  }, [imageFile, form.image]);
 
   return (
-    <div className="max-w-2xl mx-auto px-4 sm:px-6 py-10">
-      <h1 className="text-2xl sm:text-3xl font-bold mb-6 text-center">Edit Product</h1>
-
-      <form onSubmit={handleSubmit} className="space-y-4">
-        <input
-          name="name"
-          value={form.name}
-          onChange={handleChange}
-          placeholder="Product name"
-          required
-          className="w-full border p-2 rounded"
-        />
-        <textarea
-          name="description"
-          value={form.description}
-          onChange={handleChange}
-          placeholder="Description"
-          required
-          className="w-full border p-2 rounded"
-        />
-        <input
-          type="number"
-          step="0.01"
-          name="price"
-          value={form.price}
-          onChange={handleChange}
-          placeholder="Price"
-          required
-          className="w-full border p-2 rounded"
-        />
-        <input
-          type="number"
-          name="stock_quantity"
-          value={form.stock_quantity}
-          onChange={handleChange}
-          placeholder="Stock Quantity"
-          required
-          className="w-full border p-2 rounded"
-        />
-
-        {/* Current image preview */}
-        <div className="space-y-2">
-          <div className="text-sm text-gray-600">Current image</div>
-          <img
-            src={mediaUrl(form.image)}
-            alt="Product"
-            className="w-full max-h-64 object-cover rounded border"
-          />
-        </div>
-
-        <div className="space-y-2">
-          <label className="block text-sm text-gray-700">Replace image</label>
-          <input
-            type="file"
-            accept="image/*"
-            onChange={e => setImageFile(e.target.files?.[0] || null)}
-            className="w-full"
-          />
-        </div>
-
-        <button
-          type="submit"
-          className="w-full bg-green-600 hover:bg-green-700 text-white py-2 rounded"
-          disabled={saving}
+    <div className="mx-auto w-full max-w-3xl px-4 sm:px-6 lg:px-8 py-8">
+      {/* Top bar */}
+      <div className="mb-6 flex items-center justify-between">
+        <h1 className="text-2xl sm:text-3xl font-bold tracking-tight">Edit Product</h1>
+        <Link
+          to="/admin"
+          className="rounded-xl border border-gray-300 bg-white px-3 py-2 text-sm font-medium text-gray-700 hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-gray-300"
         >
-          {saving ? 'Saving...' : 'Update Product'}
-        </button>
-      </form>
+          ← Back to Admin
+        </Link>
+      </div>
+
+      {loading ? (
+        <div className="rounded-2xl border border-gray-200 bg-white p-6 shadow-sm">
+          <div className="animate-pulse space-y-4">
+            <div className="h-4 w-1/3 rounded bg-gray-200" />
+            <div className="h-10 w-full rounded bg-gray-200" />
+            <div className="h-4 w-1/3 rounded bg-gray-200" />
+            <div className="h-24 w-full rounded bg-gray-200" />
+            <div className="grid grid-cols-2 gap-4">
+              <div className="h-10 w-full rounded bg-gray-200" />
+              <div className="h-10 w-full rounded bg-gray-200" />
+            </div>
+            <div className="h-40 w-full rounded bg-gray-200" />
+            <div className="flex justify-end gap-2">
+              <div className="h-10 w-24 rounded bg-gray-200" />
+              <div className="h-10 w-32 rounded bg-gray-200" />
+            </div>
+          </div>
+        </div>
+      ) : (
+        <form onSubmit={handleSubmit} className="rounded-2xl border border-gray-200 bg-white p-5 sm:p-6 shadow-sm space-y-6">
+          {/* Name */}
+          <div>
+            <label htmlFor="name" className="block text-sm font-medium text-gray-700">
+              Product name<span className="text-red-500">*</span>
+            </label>
+            <input
+              id="name"
+              name="name"
+              value={form.name}
+              onChange={onChange}
+              required
+              className="mt-1 w-full rounded-xl border border-gray-300 bg-white px-3 py-2 text-sm shadow-sm focus:border-gray-900 focus:outline-none focus:ring-2 focus:ring-gray-900"
+            />
+          </div>
+
+          {/* Description */}
+          <div>
+            <label htmlFor="description" className="block text-sm font-medium text-gray-700">
+              Description
+            </label>
+            <textarea
+              id="description"
+              name="description"
+              value={form.description}
+              onChange={onChange}
+              rows={4}
+              className="mt-1 w-full rounded-xl border border-gray-300 bg-white px-3 py-2 text-sm shadow-sm focus:border-gray-900 focus:outline-none focus:ring-2 focus:ring-gray-900"
+            />
+            <p className="mt-1 text-xs text-gray-500">Optional. At least 5 characters is recommended.</p>
+          </div>
+
+          {/* Price & Stock */}
+          <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
+            <div>
+              <label htmlFor="price" className="block text-sm font-medium text-gray-700">
+                Price (£)<span className="text-red-500">*</span>
+              </label>
+              <input
+                id="price"
+                name="price"
+                type="number"
+                inputMode="decimal"
+                min="0.01"
+                step="0.01"
+                value={form.price}
+                onChange={onChange}
+                className="mt-1 w-full rounded-xl border border-gray-300 bg-white px-3 py-2 text-sm shadow-sm focus:border-gray-900 focus:outline-none focus:ring-2 focus:ring-gray-900"
+              />
+            </div>
+            <div>
+              <label htmlFor="stock_quantity" className="block text-sm font-medium text-gray-700">
+                Stock quantity<span className="text-red-500">*</span>
+              </label>
+              <input
+                id="stock_quantity"
+                name="stock_quantity"
+                type="number"
+                min="0"
+                step="1"
+                value={form.stock_quantity}
+                onChange={onChange}
+                className="mt-1 w-full rounded-xl border border-gray-300 bg-white px-3 py-2 text-sm shadow-sm focus:border-gray-900 focus:outline-none focus:ring-2 focus:ring-gray-900"
+              />
+            </div>
+          </div>
+
+          {/* Image uploader / preview */}
+          <div>
+            <label className="block text-sm font-medium text-gray-700">Product image</label>
+            <div
+              onDragOver={(e) => {
+                e.preventDefault();
+                setDragOver(true);
+              }}
+              onDragLeave={() => setDragOver(false)}
+              onDrop={onDrop}
+              className={`mt-1 flex cursor-pointer flex-col items-center justify-center rounded-2xl border-2 border-dashed p-6 text-center transition
+                ${dragOver ? 'border-gray-900 bg-gray-50' : 'border-gray-300 hover:border-gray-400'}`}
+            >
+              <input
+                id="file-input"
+                type="file"
+                accept="image/png,image/jpeg,image/webp"
+                className="hidden"
+                onChange={onPickFile}
+              />
+              <label htmlFor="file-input" className="cursor-pointer">
+                <div className="text-sm font-medium text-gray-900">Click to upload</div>
+                <div className="mt-1 text-xs text-gray-600">or drag and drop (JPG/PNG/WebP, max 2MB)</div>
+              </label>
+
+              <div className="mt-4 w-full max-w-sm overflow-hidden rounded-xl border border-gray-200">
+                <img
+                  src={displayPreviewSrc}
+                  alt="Preview"
+                  className="h-48 w-full object-cover"
+                />
+              </div>
+              {form.image && !imageFile && (
+                <p className="mt-2 text-xs text-gray-500 break-all">
+                  Current path: <span className="font-mono">{form.image}</span>
+                </p>
+              )}
+            </div>
+          </div>
+
+          {/* Actions */}
+          <div className="flex flex-col-reverse gap-3 sm:flex-row sm:items-center sm:justify-end">
+            <Link
+              to="/admin"
+              className="inline-flex items-center justify-center rounded-xl border border-gray-300 bg-white px-4 py-2 text-sm font-medium text-gray-700 hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-gray-300"
+            >
+              Cancel
+            </Link>
+            <button
+              type="submit"
+              disabled={submitting}
+              className={`inline-flex items-center justify-center rounded-xl px-5 py-2.5 text-sm font-medium text-white focus:outline-none focus:ring-2
+                ${submitting ? 'bg-gray-400 cursor-not-allowed' : 'bg-gray-900 hover:bg-gray-800 focus:ring-gray-900'}`}
+            >
+              {submitting ? 'Saving…' : 'Save changes'}
+            </button>
+          </div>
+        </form>
+      )}
     </div>
   );
 }

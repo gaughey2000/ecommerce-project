@@ -6,9 +6,7 @@ const createOrder = async (req, res, next) => {
   const { name, email, address } = req.body;
 
   if (!name || !email || !address) {
-    const error = new Error('Missing name, email or address');
-    error.status = 400;
-    return next(error);
+    return res.status(400).json({ error: 'Missing name, email or address' });
   }
 
   try {
@@ -21,9 +19,7 @@ const createOrder = async (req, res, next) => {
     );
 
     if (cart.rows.length === 0) {
-      const error = new Error('Your cart is empty');
-      error.status = 400;
-      return next(error);
+      return res.status(400).json({ error: 'Your cart is empty' });
     }
 
     const total = cart.rows.reduce((sum, item) => sum + item.quantity * item.price, 0);
@@ -50,7 +46,6 @@ const createOrder = async (req, res, next) => {
 
     res.status(201).json({ message: 'Order placed successfully', orderId });
   } catch (err) {
-    err.status = 500;
     next(err);
   }
 };
@@ -65,12 +60,11 @@ const getOrderHistory = async (req, res, next) => {
     );
     res.json(result.rows);
   } catch (err) {
-    err.status = 500;
     next(err);
   }
 };
 
-// Get one order by ID with aliased shipping fields
+// Get one order by ID
 const getOrderById = async (req, res, next) => {
   const { orderId } = req.params;
   const userId = req.user.userId;
@@ -97,11 +91,6 @@ const getOrderById = async (req, res, next) => {
 // Get items for a specific order
 const getOrderItemsByOrderId = async (req, res, next) => {
   const { orderId } = req.params;
-  if (!/^[0-9]+$/.test(orderId)) {
-    const error = new Error('Invalid order ID');
-    error.status = 400;
-    return next(error);
-  }
 
   try {
     const result = await pool.query(
@@ -110,7 +99,47 @@ const getOrderItemsByOrderId = async (req, res, next) => {
     );
     res.json(result.rows);
   } catch (err) {
-    err.status = 500;
+    next(err);
+  }
+};
+
+// Update order status (admin or user cancel)
+const updateOrderStatus = async (req, res, next) => {
+  const { orderId } = req.params;
+  const { status } = req.body;
+
+  if (!['pending', 'shipped', 'cancelled'].includes(status)) {
+    return res.status(400).json({ error: 'Invalid status' });
+  }
+
+  try {
+    const result = await pool.query(
+      `UPDATE orders SET status = $1 WHERE order_id = $2 RETURNING *`,
+      [status, orderId]
+    );
+    if (result.rowCount === 0) {
+      return res.status(404).json({ error: 'Order not found' });
+    }
+    res.json(result.rows[0]);
+  } catch (err) {
+    next(err);
+  }
+};
+
+// Cancel (soft delete) an order
+const cancelOrder = async (req, res, next) => {
+  const { orderId } = req.params;
+
+  try {
+    const result = await pool.query(
+      `UPDATE orders SET status = 'cancelled' WHERE order_id = $1 RETURNING *`,
+      [orderId]
+    );
+    if (result.rowCount === 0) {
+      return res.status(404).json({ error: 'Order not found' });
+    }
+    res.json({ message: 'Order cancelled', order: result.rows[0] });
+  } catch (err) {
     next(err);
   }
 };
@@ -119,5 +148,7 @@ module.exports = {
   createOrder,
   getOrderHistory,
   getOrderById,
-  getOrderItemsByOrderId
+  getOrderItemsByOrderId,
+  updateOrderStatus,
+  cancelOrder,
 };

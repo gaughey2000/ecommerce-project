@@ -1,39 +1,47 @@
-import { useContext } from 'react';
-import { AuthContext } from '../context/AuthContext';
 import { Link } from 'react-router-dom';
 
 export default function HomePage() {
-  const { user } = useContext(AuthContext);
-
   return (
-    <div className="min-h-screen bg-gray-50 px-4 py-10 sm:px-6 lg:px-8">
-      <div className="max-w-4xl mx-auto">
-        <h1 className="text-3xl sm:text-4xl font-bold mb-4">Welcome 👋</h1>
-        <p className="text-gray-700 mb-6 text-base sm:text-lg">
-          {user?.email ? `Logged in as ${user.email}` : 'You are not logged in.'}
+    <main className="mx-auto max-w-6xl px-4 sm:px-6 lg:px-8 py-16">
+      {/* Hero */}
+      <section className="text-center">
+        <h1 className="text-4xl sm:text-5xl font-extrabold tracking-tight text-gray-900">
+          Welcome to the Store
+        </h1>
+        <p className="mt-4 max-w-2xl mx-auto text-gray-600">
+          A clean, modern e-commerce demo built with the PERN stack. Browse products, manage your cart,
+          and check out securely.
         </p>
-
-        <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
+        <div className="mt-8 flex flex-col sm:flex-row items-center justify-center gap-3">
           <Link
             to="/products"
-            className="text-center bg-blue-600 text-white py-3 px-4 rounded shadow hover:bg-blue-700 transition"
+            className="inline-flex items-center rounded-lg bg-gray-900 px-6 py-3 text-sm font-medium text-white hover:bg-gray-800"
           >
-            Browse Products
+            Shop Products
           </Link>
           <Link
-            to="/user"
-            className="text-center bg-gray-600 text-white py-3 px-4 rounded shadow hover:bg-gray-700 transition"
+            to="/orders"
+            className="inline-flex items-center rounded-lg border border-gray-300 px-6 py-3 text-sm font-medium text-gray-900 hover:bg-gray-50"
           >
-            View Profile & Orders
-          </Link>
-          <Link
-            to="/cart"
-            className="text-center bg-green-600 text-white py-3 px-4 rounded shadow hover:bg-green-700 transition"
-          >
-            View Cart
+            View Orders
           </Link>
         </div>
-      </div>
-    </div>
+      </section>
+
+      {/* Highlights */}
+      <section className="mt-16 grid gap-6 sm:grid-cols-2 lg:grid-cols-3">
+        {[
+          { title: 'Secure Checkout', desc: 'Stripe-powered payments in test mode.', emoji: '💳' },
+          { title: 'Admin Tools', desc: 'Manage products, users, and orders.', emoji: '🛠️' },
+          { title: 'Mobile Friendly', desc: 'Responsive Tailwind UI.', emoji: '📱' },
+        ].map((f) => (
+          <div key={f.title} className="rounded-2xl border bg-white p-6 shadow-sm">
+            <div className="text-3xl">{f.emoji}</div>
+            <h3 className="mt-3 text-lg font-semibold text-gray-900">{f.title}</h3>
+            <p className="mt-2 text-gray-600 text-sm">{f.desc}</p>
+          </div>
+        ))}
+      </section>
+    </main>
   );
 }

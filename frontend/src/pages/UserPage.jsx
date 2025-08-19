@@ -1,160 +1,122 @@
-import { useEffect, useState, useContext } from 'react';
-import { authFetch } from '../services/api';
-import { AuthContext } from '../context/AuthContext';
+import { useEffect, useState } from 'react';
 import { toast } from 'sonner';
-import SkeletonCard from '../components/SkeletonCard';
+import { authFetch } from '../services/api';
 
 export default function UserPage() {
-  const { user, logout } = useContext(AuthContext);
-  const [profile, setProfile] = useState({ username: '', email: '' });
-  const [passwordForm, setPasswordForm] = useState({ current: '', next: '', confirm: '' });
+  const [profile, setProfile] = useState(null);
   const [orders, setOrders] = useState([]);
   const [loading, setLoading] = useState(true);
 
+  // Change password form
+  const [cp, setCp] = useState({ currentPassword: '', newPassword: '' });
+  const [cpLoading, setCpLoading] = useState(false);
+
   useEffect(() => {
-    (async () => {
-      try {
-        const [profileData, ordersData] = await Promise.all([
-          authFetch('/users/me'),
-          authFetch('/orders'),
-        ]);
-        setProfile({ username: profileData.username, email: profileData.email });
-        setOrders(ordersData || []);
-      } catch {
-        toast.error('Failed to load profile or orders');
-      } finally {
-        setLoading(false);
-      }
-    })();
+    let isMounted = true;
+    Promise.all([authFetch('/users/me'), authFetch('/orders')])
+      .then(([me, os]) => {
+        if (!isMounted) return;
+        setProfile(me);
+        setOrders(os || []);
+      })
+      .catch(() => toast.error('Failed to load profile or orders'))
+      .finally(() => isMounted && setLoading(false));
+    return () => { isMounted = false; };
   }, []);
 
-  const handleProfileChange = (e) =>
-    setProfile((p) => ({ ...p, [e.target.name]: e.target.value }));
-
-  const saveProfile = async (e) => {
+  async function onChangePassword(e) {
     e.preventDefault();
-    try {
-      await authFetch('/users/me', {
-        method: 'PATCH',
-        body: JSON.stringify({ username: profile.username, email: profile.email }),
-      }, true);
-      toast.success('Profile updated');
-    } catch (err) {
-      toast.error(err.message || 'Failed to update profile');
-    }
-  };
-
-  const changePassword = async (e) => {
-    e.preventDefault();
-    if (passwordForm.next !== passwordForm.confirm)
-      return toast.error('Passwords do not match');
+    setCpLoading(true);
     try {
       await authFetch('/auth/change-password', {
         method: 'POST',
-        body: JSON.stringify({
-          currentPassword: passwordForm.current,
-          newPassword: passwordForm.next,
-        }),
+        body: JSON.stringify(cp),
       }, true);
-      setPasswordForm({ current: '', next: '', confirm: '' });
+      setCp({ currentPassword: '', newPassword: '' });
     } catch (err) {
-      toast.error(err.message || 'Failed to change password');
+      // toast shown in authFetch
+    } finally {
+      setCpLoading(false);
     }
-  };
+  }
 
-  const deleteAccount = async () => {
-    if (!window.confirm('Are you sure you want to delete your account? This cannot be undone.')) return;
-    try {
-      await authFetch('/users/me', { method: 'DELETE' }, true);
-      logout();
-    } catch (err) {
-      toast.error(err.message || 'Failed to delete account');
-    }
-  };
-
-  if (loading) return <SkeletonCard count={1} />;
+  if (loading) {
+    return (
+      <main className="mx-auto max-w-4xl px-4 sm:px-6 lg:px-8 py-10">
+        <div className="h-6 w-40 bg-gray-200 animate-pulse rounded" />
+        <div className="mt-6 h-40 bg-gray-100 animate-pulse rounded" />
+      </main>
+    );
+  }
 
   return (
-    <div className="max-w-3xl mx-auto px-4 sm:px-6 py-10 space-y-10">
-      <section>
-        <h2 className="text-xl font-bold mb-4">Profile</h2>
-        <form onSubmit={saveProfile} className="space-y-3">
-          <input
-            name="username"
-            value={profile.username}
-            onChange={handleProfileChange}
-            placeholder="Username"
-            className="w-full border p-2 rounded"
-          />
-          <input
-            name="email"
-            type="email"
-            value={profile.email}
-            onChange={handleProfileChange}
-            placeholder="Email"
-            className="w-full border p-2 rounded"
-          />
-          <button className="bg-blue-600 hover:bg-blue-700 text-white px-4 py-2 rounded">
-            Save
-          </button>
+    <main className="mx-auto max-w-4xl px-4 sm:px-6 lg:px-8 py-10">
+      <h1 className="text-2xl font-bold text-gray-900">Your Account</h1>
+      {profile && (
+        <div className="mt-4 rounded-2xl border bg-white p-6 shadow-sm">
+          <p><span className="font-medium">Username:</span> {profile.username}</p>
+          <p className="mt-1"><span className="font-medium">Email:</span> {profile.email}</p>
+        </div>
+      )}
+
+      {/* Change Password */}
+      <section className="mt-8 rounded-2xl border bg-white p-6 shadow-sm">
+        <h2 className="text-lg font-semibold text-gray-900">Change Password</h2>
+        <form onSubmit={onChangePassword} className="mt-4 grid gap-4 sm:grid-cols-2">
+          <div className="sm:col-span-1">
+            <label className="block text-sm text-gray-700">Current Password</label>
+            <input
+              type="password"
+              value={cp.currentPassword}
+              onChange={(e) => setCp((s) => ({ ...s, currentPassword: e.target.value }))}
+              className="mt-1 w-full rounded-lg border border-gray-300 px-3 py-2 focus:ring-2 focus:ring-gray-900 focus:outline-none"
+              required
+            />
+          </div>
+          <div className="sm:col-span-1">
+            <label className="block text-sm text-gray-700">New Password</label>
+            <input
+              type="password"
+              minLength={8}
+              value={cp.newPassword}
+              onChange={(e) => setCp((s) => ({ ...s, newPassword: e.target.value }))}
+              className="mt-1 w-full rounded-lg border border-gray-300 px-3 py-2 focus:ring-2 focus:ring-gray-900 focus:outline-none"
+              required
+            />
+          </div>
+          <div className="sm:col-span-2">
+            <button
+              disabled={cpLoading}
+              className="rounded-lg bg-gray-900 px-4 py-2 text-sm font-medium text-white hover:bg-gray-800 disabled:opacity-60"
+            >
+              {cpLoading ? 'Updating…' : 'Update Password'}
+            </button>
+          </div>
         </form>
       </section>
 
-      <section>
-        <h2 className="text-xl font-bold mb-4">Change Password</h2>
-        <form onSubmit={changePassword} className="space-y-3">
-          <input
-            type="password"
-            placeholder="Current password"
-            value={passwordForm.current}
-            onChange={(e) => setPasswordForm((s) => ({ ...s, current: e.target.value }))}
-            className="w-full border p-2 rounded"
-          />
-          <input
-            type="password"
-            placeholder="New password"
-            value={passwordForm.next}
-            onChange={(e) => setPasswordForm((s) => ({ ...s, next: e.target.value }))}
-            className="w-full border p-2 rounded"
-          />
-          <input
-            type="password"
-            placeholder="Confirm new password"
-            value={passwordForm.confirm}
-            onChange={(e) => setPasswordForm((s) => ({ ...s, confirm: e.target.value }))}
-            className="w-full border p-2 rounded"
-          />
-          <button className="bg-gray-800 hover:bg-black text-white px-4 py-2 rounded">
-            Change Password
-          </button>
-        </form>
-      </section>
-
-      <section>
-        <h2 className="text-xl font-bold mb-4">Orders</h2>
-        <ul className="space-y-2">
-          {orders.length ? (
-            orders.map(o => (
-              <li key={o.order_id} className="border rounded p-3">
-                <div className="text-sm text-gray-600">Order #{o.order_id}</div>
-                <div>Status: {o.status}</div>
-                <div>Total: £{Number(o.total_amount).toFixed(2)}</div>
-              </li>
-            ))
-          ) : (
+      {/* Orders */}
+      <section className="mt-8">
+        <h2 className="text-lg font-semibold text-gray-900">Your Orders</h2>
+        <div className="mt-4 grid gap-4">
+          {(orders || []).map((o) => (
+            <div key={o.order_id} className="rounded-xl border bg-white p-4 shadow-sm">
+              <div className="flex flex-wrap items-center justify-between gap-3">
+                <div>
+                  <p className="font-medium">Order #{o.order_id}</p>
+                  <p className="text-sm text-gray-600">{new Date(o.created_at).toLocaleString()}</p>
+                </div>
+                <span className="rounded-full bg-gray-900 px-3 py-1 text-xs font-medium text-white">
+                  {o.status}
+                </span>
+              </div>
+            </div>
+          ))}
+          {(!orders || orders.length === 0) && (
             <p className="text-gray-600">No orders yet.</p>
           )}
-        </ul>
+        </div>
       </section>
-
-      <section className="text-center">
-        <button
-          onClick={deleteAccount}
-          className="bg-red-600 hover:bg-red-700 text-white px-4 py-2 rounded"
-        >
-          Delete My Account
-        </button>
-      </section>
-    </div>
+    </main>
   );
 }

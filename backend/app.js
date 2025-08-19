@@ -108,7 +108,7 @@ app.use('/api/checkout', checkoutRoutes);
 app.use('/api/users', userRoutes);
 
 // Swagger docs
-app.use('/api/docs', swaggerUi.serve, swaggerUi.setup(swaggerDocument));
+app.use('/api-docs', swaggerUi.serve, swaggerUi.setup(swaggerDocument));
 
 // Final middleware
 app.use(notFound);

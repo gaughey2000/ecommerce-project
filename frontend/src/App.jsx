@@ -1,21 +1,26 @@
-import { Routes, Route, Navigate } from 'react-router-dom';
+import { Routes, Route } from 'react-router-dom';
 import { Toaster } from 'sonner';
-import LoginPage from './pages/LoginPage';
-import ProductListPage from './pages/ProductListPage';
+
+import Layout from './components/Layout';
 import ProtectedRoute from './components/ProtectedRoute';
+import AdminRoute from './components/AdminRoute';
+
+import HomePage from './pages/HomePage';
+import ProductListPage from './pages/ProductListPage';
+import ProductDetailPage from './pages/ProductDetailPage'; // ⬅️ NEW
 import CartPage from './pages/CartPage';
 import OrderHistoryPage from './pages/OrderHistoryPage';
-import AdminRoute from './components/AdminRoute';
+import OrderSuccessPage from './pages/OrderSuccessPage';
 import AdminDashboardPage from './pages/AdminDashboardPage';
 import AddProductPage from './pages/AddProductPage';
 import EditProductPage from './pages/EditProductPage';
-import RegisterPage from './pages/RegisterPage';
-import HomePage from './pages/HomePage';
 import UserPage from './pages/UserPage';
+import AboutPage from './pages/AboutPage';
+
+import LoginPage from './pages/LoginPage';
+import RegisterPage from './pages/RegisterPage';
 import UnauthorizedPage from './pages/UnauthorizedPage';
 import NotFoundPage from './pages/NotFoundPage';
-import Layout from './components/Layout';
-import OrderSuccessPage from './pages/OrderSuccessPage';
 
 export default function App() {
   return (
@@ -23,7 +28,13 @@ export default function App() {
       <Toaster position="bottom-right" richColors />
       <Routes>
         <Route element={<Layout />}>
+          {/* Public inside layout */}
           <Route path="/products" element={<ProductListPage />} />
+          <Route path="/products/:id" element={<ProductDetailPage />} /> {/* ⬅️ NEW */}
+          <Route path="/product/:id" element={<ProductDetailPage />} />  {/* ⬅️ alias */}
+          <Route path="/about" element={<AboutPage />} />
+
+          {/* Auth-required inside layout */}
           <Route
             path="/cart"
             element={
