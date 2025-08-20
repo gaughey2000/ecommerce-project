@@ -159,3 +159,13 @@ exports.getCart = async (req, res, next) => {
     next(err);
   }
 };
+
+exports.clearCart = async (req, res, next) => {
+  try {
+    await pool.query('DELETE FROM cart_items WHERE user_id = $1', [req.user.userId]);
+    return res.json({ message: 'Cart cleared' });
+  } catch (err) {
+    err.status = 500;
+    return next(err);
+  }
+};

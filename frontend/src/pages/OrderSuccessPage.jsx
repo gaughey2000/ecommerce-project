@@ -28,7 +28,9 @@ export default function OrderSuccessPage() {
     try {
       const ord = await authFetch(`/orders/by-session/${sid}`);
       setOrder(ord || null);
-
+      try {
+        await authFetch('/cart/clear', { method: 'POST' });
+      } catch {}
       if (ord?.order_id) {
         const its = await authFetch(`/orders/${ord.order_id}/items`);
         setItems(Array.isArray(its) ? its : []);

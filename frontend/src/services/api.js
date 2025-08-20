@@ -1,44 +1,29 @@
-// frontend/src/services/api.js
 import { toast } from 'sonner';
 
-export const API_BASE_URL =
-  `${(import.meta.env.VITE_API_URL || 'http://localhost:3000').replace(/\/$/, '')}/api`;
+export const API_BASE_URL = `${(import.meta.env.VITE_API_URL || 'http://localhost:3000').replace(/\/$/, '')}/api`;
 
-export const authFetch = async (endpoint, options = {}, showToast = false) => {
-  const token = localStorage.getItem('token');
-
-  const isFormData = options.body instanceof FormData;
-  const headers = {
-    ...(options.headers || {}),
-    ...(token ? { Authorization: `Bearer ${token}` } : {}),
-    ...(!isFormData ? { 'Content-Type': 'application/json' } : {}),
-  };
-
+export async function authFetch(url, options = {}) {
   try {
-    const res = await fetch(`${API_BASE_URL}${endpoint}`, {
+    const res = await fetch(`${API_BASE_URL}${url}`, {
+      headers: {
+        'Content-Type': 'application/json',
+        Authorization: localStorage.getItem('token') ? `Bearer ${localStorage.getItem('token')}` : '',
+        ...options.headers,
+      },
       ...options,
-      headers,
     });
 
-    const contentType = res.headers.get('content-type') || '';
-    const contentLengthHeader = res.headers.get('content-length');
-    const contentLength = contentLengthHeader == null ? null : Number(contentLengthHeader);
-    const hasBody = res.status !== 204 && (contentLength === null || contentLength > 0);
+    if (res.status === 204) return null;
 
-    let data = null;
-    if (hasBody && contentType.includes('application/json')) {
-      data = await res.json().catch(() => null);
-    }
-
+    const data = await res.json().catch(() => null);
     if (!res.ok) {
-      if (showToast) toast.error(data?.error || `HTTP ${res.status}`);
-      throw new Error(data?.error || `Request failed (${res.status})`);
+      toast.error(data?.error || 'Something went wrong');
+      throw new Error(data?.error || 'Something went wrong');
     }
-
-    if (showToast && data?.message) toast.success(data.message);
-    return data ?? (hasBody ? {} : null);
+    return data;
   } catch (err) {
-    if (showToast) toast.error(err.message || 'Request failed');
+    console.error('authFetch error:', err);
+    toast.error(err.message);
     throw err;
   }
-};
+}

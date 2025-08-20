@@ -2,7 +2,7 @@ const express = require('express');
 const router = express.Router();
 const auth = require('../middleware/auth');
 const pool = require('../db');
-
+const { clearCart } = require('../controllers/cartController');
 // GET /api/cart
 router.get('/', auth, async (req, res) => {
   try {
@@ -107,5 +107,9 @@ router.delete('/:id', auth, async (req, res) => {
     res.status(500).json({ error: 'Failed to remove from cart' });
   }
 });
+
+
+// Clear all items in the current user's cart
+router.post('/clear', auth, clearCart);
 
 module.exports = router;

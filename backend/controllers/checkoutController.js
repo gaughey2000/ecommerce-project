@@ -2,14 +2,14 @@
 const pool = require('../db');
 const stripe = require('stripe')(process.env.STRIPE_SECRET_KEY);
 
-// Minor-units helper (e.g., pence -> pounds)
-const toPrice = (unit) => Number(unit) / 100;
+// Helpers
+const toPrice = (unit) => Number(unit) / 100; // minor units -> decimal
 
 exports.createCheckoutSession = async (req, res) => {
   const userId = req.user.userId;
 
   try {
-    // Snapshot the user's cart (store prices in minor units if present)
+    // Snapshot the user's cart with minor units + currency
     const { rows: cart } = await pool.query(
       `SELECT ci.product_id, ci.quantity,
               p.name,
@@ -28,7 +28,7 @@ exports.createCheckoutSession = async (req, res) => {
 
     const totalMinor = cart.reduce((s, it) => s + it.quantity * it.unit_amount, 0);
 
-    // 1) Create pending order + items (webhook marks it paid)
+    // 1) Create a pending order + items (webhook will mark it paid)
     const { rows: orderIns } = await pool.query(
       `INSERT INTO orders (user_id, status, total_amount)
        VALUES ($1, 'pending', $2)
@@ -45,12 +45,15 @@ exports.createCheckoutSession = async (req, res) => {
       );
     }
 
-    // 2) Build Stripe line_items
+    // 2) Stripe line items
     const line_items = cart.map((it) => ({
       price_data: {
         currency: it.currency.toLowerCase(),
-        product_data: { name: it.name, description: it.description || undefined },
-        unit_amount: it.unit_amount,
+        product_data: {
+          name: it.name,
+          description: it.description || undefined,
+        },
+        unit_amount: it.unit_amount, // minor units
       },
       quantity: it.quantity,
     }));
@@ -59,8 +62,8 @@ exports.createCheckoutSession = async (req, res) => {
       process.env.FRONTEND_URL || process.env.CORS_ORIGIN || 'http://localhost:5173';
 
     const session = await stripe.checkout.sessions.create({
-      payment_method_types: ['card'],
       mode: 'payment',
+      payment_method_types: ['card'],
       line_items,
       client_reference_id: String(userId),
       metadata: {
@@ -71,7 +74,7 @@ exports.createCheckoutSession = async (req, res) => {
       cancel_url: `${FRONTEND_URL}/cart`,
     });
 
-    // Link order to this session
+    // Link the pending order to this session
     await pool.query(
       `UPDATE orders SET stripe_session_id = $1 WHERE order_id = $2`,
       [session.id, orderId]
@@ -91,9 +94,14 @@ exports.handleWebhook = async (req, res) => {
   const webhookSecret = process.env.STRIPE_WEBHOOK_SECRET;
   if (!webhookSecret) return res.status(500).send('Webhook misconfigured');
 
+  // Support either raw buffer (recommended) or plain body buffer
+  const rawBody =
+    req.rawBody ||
+    (Buffer.isBuffer(req.body) ? req.body : Buffer.from(JSON.stringify(req.body)));
+
   let event;
   try {
-    event = stripe.webhooks.constructEvent(req.body, sig, webhookSecret);
+    event = stripe.webhooks.constructEvent(rawBody, sig, webhookSecret);
   } catch (err) {
     console.error('❌ Webhook signature verification failed:', err.message);
     return res.status(400).send(`Webhook Error: ${err.message}`);
@@ -110,7 +118,7 @@ exports.handleWebhook = async (req, res) => {
     const orderIdMeta = Number(session?.metadata?.orderId) || null;
     const userIdMeta = Number(session?.metadata?.userId) || null;
 
-    // Primary: update by session id
+    // Primary update by session id
     if (sessionId) {
       const { rowCount } = await pool.query(
         `UPDATE orders
@@ -124,12 +132,18 @@ exports.handleWebhook = async (req, res) => {
         [paymentIntentId || session.payment_intent || null, name, email, address, sessionId]
       );
       if (rowCount > 0) {
-        if (userIdMeta) await pool.query('DELETE FROM cart_items WHERE user_id = $1', [userIdMeta]);
+        if (userIdMeta) {
+          try {
+            await pool.query('DELETE FROM cart_items WHERE user_id = $1', [userIdMeta]);
+          } catch (e) {
+            console.error('⚠️ Failed to clear cart after payment:', e);
+          }
+        }
         return true;
       }
     }
 
-    // Fallback: update by metadata.orderId if present
+    // Fallback update by order id
     if (orderIdMeta) {
       const { rowCount } = await pool.query(
         `UPDATE orders
@@ -144,7 +158,13 @@ exports.handleWebhook = async (req, res) => {
         [sessionId, paymentIntentId || session?.payment_intent || null, name, email, address, orderIdMeta]
       );
       if (rowCount > 0) {
-        if (userIdMeta) await pool.query('DELETE FROM cart_items WHERE user_id = $1', [userIdMeta]);
+        if (userIdMeta) {
+          try {
+            await pool.query('DELETE FROM cart_items WHERE user_id = $1', [userIdMeta]);
+          } catch (e) {
+            console.error('⚠️ Failed to clear cart after payment:', e);
+          }
+        }
         return true;
       }
     }
@@ -199,7 +219,7 @@ exports.handleWebhook = async (req, res) => {
         break;
       }
       default:
-        // ignore others
+        // Ignore other events
         break;
     }
 
